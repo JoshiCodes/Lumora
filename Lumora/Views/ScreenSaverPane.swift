@@ -54,6 +54,12 @@ struct ScreenSaverPane: View {
 
             Spacer(minLength: 12)
 
+            if saver.isSyncing {
+                ProgressView()
+                    .controlSize(.small)
+                    .help("Updating the screen saver…")
+            }
+
             if saver.isInstalled {
                 Button("Open System Settings") { saver.openSystemSettings() }
                 Menu {
@@ -82,9 +88,6 @@ struct ScreenSaverPane: View {
     private var message: String {
         if !saver.isInstalled {
             return "Installs a screen saver that plays videos from your library. You choose it in System Settings afterwards."
-        }
-        if !saver.hostIsReady {
-            return "Select Lumora once under System Settings › Screen Saver. Your videos will be handed over right after."
         }
         if saver.selection.isEmpty {
             return "Choose which videos it should play."

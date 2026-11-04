@@ -18,16 +18,29 @@ final class DownloadManager: ObservableObject {
     }
 
     func download(_ video: RemoteVideo, activate: Bool = false) {
-        guard tasks[video.id] == nil, library.clip(forSourceID: video.id) == nil,
-              let file = video.file(covering: Self.targetPixelWidth)
-        else {
-            if activate, let clip = library.clip(forSourceID: video.id) {
-                library.activeClipID = clip.id
-            }
+        if let clip = library.clip(forSourceID: video.id) {
+            if activate { library.activeClipID = clip.id }
             return
         }
-
+        guard progress[video.id] == nil else { return }
         progress[video.id] = 0
+
+        Task {
+            do {
+                let files = try await video.provider.client.files(for: video)
+                guard progress[video.id] != nil else { return }
+                guard let file = RemoteVideo.File.best(in: files, covering: Self.targetPixelWidth) else {
+                    throw ResolveError.noPlayableFile
+                }
+                start(video, file: file, activate: activate)
+            } catch {
+                progress[video.id] = nil
+                failure = "Couldn't download “\(video.title)”: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func start(_ video: RemoteVideo, file: RemoteVideo.File, activate: Bool) {
         let id = video.id
         let task = URLSession.shared.downloadTask(with: file.url) { [weak self] location, response, error in
             var downloaded: URL?
@@ -61,7 +74,11 @@ final class DownloadManager: ObservableObject {
     }
 
     func cancel(_ video: RemoteVideo) {
-        tasks[video.id]?.cancel()
+        if let task = tasks[video.id] {
+            task.cancel()
+        } else {
+            progress[video.id] = nil
+        }
     }
 
     private func finish(_ video: RemoteVideo, file: URL?, error: Error?, activate: Bool) async {

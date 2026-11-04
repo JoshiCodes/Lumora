@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor
 final class DiscoverModel: ObservableObject {
-    @Published var provider: ProviderID = .pexels {
+    @Published var provider: ProviderID = .nasa {
         didSet { if oldValue != provider { reload() } }
     }
     @Published var query = ""
@@ -37,7 +37,8 @@ final class DiscoverModel: ObservableObject {
 
     private func loadNextPage() {
         guard !isLoading, !reachedEnd else { return }
-        guard let key = keys.key(for: provider) else {
+        let key = keys.key(for: provider) ?? ""
+        guard !provider.needsKey || !key.isEmpty else {
             needsKey = true
             return
         }

@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let discover: DiscoverModel
     let downloads: DownloadManager
     let screenSaver: ScreenSaverManager
+    let performance: PerformanceMonitor
 
     override init() {
         preferences = Preferences()
@@ -18,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         discover = DiscoverModel(keys: apiKeys)
         downloads = DownloadManager(library: library)
         screenSaver = ScreenSaverManager(library: library, preferences: preferences)
+        performance = PerformanceMonitor(library: library, wallpaper: wallpaper)
         super.init()
     }
 
@@ -40,5 +42,6 @@ extension View {
             .environmentObject(delegate.discover)
             .environmentObject(delegate.downloads)
             .environmentObject(delegate.screenSaver)
+            .environmentObject(delegate.performance)
     }
 }

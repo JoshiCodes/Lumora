@@ -90,22 +90,12 @@ final class LumoraSaverView: ScreenSaverView {
     }
 
     private static func loadManifest() -> (manifest: SaverManifest, folder: URL)? {
-        let fileManager = FileManager.default
-        var candidates = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .map { $0.appendingPathComponent(SaverManifest.folderName, isDirectory: true) }
-        let containerSupport = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Containers/\(SaverManifest.hostBundleID)/Data/Library/Application Support/\(SaverManifest.folderName)",
-                                    isDirectory: true)
-        candidates.append(containerSupport)
-
-        for folder in candidates {
-            let url = folder.appendingPathComponent(SaverManifest.fileName)
-            guard let data = try? Data(contentsOf: url),
-                  let manifest = try? JSONDecoder().decode(SaverManifest.self, from: data),
-                  !manifest.clips.isEmpty
-            else { continue }
-            return (manifest, folder)
-        }
-        return nil
+        guard let resources = Bundle(for: LumoraSaverView.self).resourceURL else { return nil }
+        let folder = resources.appendingPathComponent(SaverManifest.folderName, isDirectory: true)
+        guard let data = try? Data(contentsOf: folder.appendingPathComponent(SaverManifest.fileName)),
+              let manifest = try? JSONDecoder().decode(SaverManifest.self, from: data),
+              !manifest.clips.isEmpty
+        else { return nil }
+        return (manifest, folder)
     }
 }

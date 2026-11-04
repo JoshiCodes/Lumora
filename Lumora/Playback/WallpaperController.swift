@@ -7,6 +7,7 @@ final class WallpaperController: ObservableObject {
     @Published private(set) var isUserPaused = false
     @Published private(set) var isPlaying = false
     @Published private(set) var pauseReason: String?
+    @Published private(set) var isHeldForMeasurement = false
 
     private let library: VideoLibrary
     private let preferences: Preferences
@@ -88,6 +89,14 @@ final class WallpaperController: ObservableObject {
         library.activeClipID = nil
     }
 
+    /// Lets the performance monitor measure the system without Lumora playing.
+    func holdForMeasurement(_ hold: Bool) {
+        isHeldForMeasurement = hold
+        updatePlayback()
+    }
+
+    var hasClipLoaded: Bool { looper != nil }
+
     // MARK: - Playback
 
     private func loadActiveClip() {
@@ -159,6 +168,8 @@ final class WallpaperController: ObservableObject {
     private func updatePlayback() {
         let reason: String? = if loadedClipID == nil || looper == nil {
             nil
+        } else if isHeldForMeasurement {
+            "Paused for a measurement"
         } else if isUserPaused {
             "Paused"
         } else if conditions.isAsleep || conditions.isLocked || conditions.isSessionInactive {

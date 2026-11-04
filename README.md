@@ -1,11 +1,12 @@
 # Lumora
 
-Live video wallpapers for macOS. Bring your own clips or find new ones on Pexels and Pixabay, and Lumora plays them behind your desktop icons on every display and every Space.
+Live video wallpapers for macOS. Bring your own clips or find new ones from NASA, the Internet Archive, Pexels and Pixabay, and Lumora plays them behind your desktop icons on every display and every Space.
 
 - **Now Playing:** live preview of what's on your desktop, with pause, stop and scaling
 - **Library:** drag and drop your own videos, rename them, filter them
-- **Discover:** browse and search Pexels and Pixabay, preview a clip and set it as your wallpaper in one click
+- **Discover:** browse and search NASA, the Internet Archive, Pexels and Pixabay, preview a clip and set it as your wallpaper in one click
 - **Screen Saver:** a matching screen saver that plays videos from your library, also on top of the lock screen
+- **Performance:** live CPU, memory and GPU readings, details about the current video, and an impact test
 - Lives in the menu bar, with a Dock icon only while the window is open
 
 Requires macOS 15 or later on Apple Silicon.
@@ -40,13 +41,26 @@ You only need to do this once per version.
 
 ## Video sources
 
-Discover uses the free APIs from [Pexels](https://www.pexels.com/api/) and [Pixabay](https://pixabay.com/api/docs/). Each needs a personal API key, which you paste into **Settings → Video Sources** or straight into the Discover tab. Keys are stored locally and are never bundled with the app.
+| Source | Key needed | Good for |
+| --- | --- | --- |
+| [NASA Image and Video Library](https://images.nasa.gov) | No | Earth from orbit, auroras, launches, planets |
+| [Internet Archive](https://archive.org/details/movies) | No | Time-lapses, aerials, public domain footage |
+| [Pexels](https://www.pexels.com/api/) | Yes, free | Polished stock footage in 4K |
+| [Pixabay](https://pixabay.com/api/docs/) | Yes, free | Stock footage and motion backgrounds |
+
+Paste keys into **Settings → Video Sources** or straight into the Discover tab. They are stored locally and never bundled with the app. Check each source's license before using a video outside your own desktop.
+
+## Performance
+
+The **Performance** tab shows Lumora's CPU and memory, the system's GPU load and details about the current video, such as codec, resolution and whether it's hardware-decoded. It also gives hints when a clip is heavier than it needs to be.
+
+Because macOS does part of the decoding and drawing in its own services, Lumora's process alone doesn't tell the whole story. The **impact test** measures the whole Mac for 10 seconds while playing and 10 seconds while paused and shows the difference. Sampling only runs while the tab is open.
 
 ## Screen saver
 
-Open the **Screen Saver** tab and click **Install**. Then pick Lumora under **System Settings → Screen Saver** once. After that, choose which videos it should play.
+Open the **Screen Saver** tab, click **Install** and pick Lumora under **System Settings → Screen Saver**. Then choose which videos it should play.
 
-macOS runs third-party screen savers in a sandbox, so Lumora hard-links the selected videos into the screen saver's container. This takes no extra disk space. The first time, macOS may ask whether Lumora can access data from other apps. Allow it.
+macOS runs third-party screen savers in a sandbox that can't see Lumora's library. Lumora therefore hard-links the selected videos into the installed `Lumora.saver` bundle, which the screen saver can always read. Hard links take no extra disk space.
 
 A truly animated lock screen like Apple's Aerials isn't possible with public APIs. While the Mac is locked and idle, the screen saver plays on top of the lock screen, and the lock screen picture itself matches the first frame of your wallpaper.
 

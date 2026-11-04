@@ -10,6 +10,7 @@ struct RemoteVideoDetail: View {
 
     @State private var player: AVQueuePlayer?
     @State private var looper: AVPlayerLooper?
+    @State private var files: [RemoteVideo.File] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -47,7 +48,7 @@ struct RemoteVideoDetail: View {
         }
         .padding(20)
         .frame(width: 660)
-        .task { startPreview() }
+        .task { await startPreview() }
         .onDisappear {
             player?.pause()
             looper = nil
@@ -80,15 +81,21 @@ struct RemoteVideoDetail: View {
     }
 
     private var details: String {
-        var parts = [Clip.format(video.duration)]
-        if let file = video.file(covering: DownloadManager.targetPixelWidth) {
-            parts.append("Downloads at \(file.width) × \(file.height)")
+        var parts: [String] = []
+        if video.duration > 0 {
+            parts.append(Clip.format(video.duration))
         }
+        if let file = RemoteVideo.File.best(in: files, covering: DownloadManager.targetPixelWidth) {
+            parts.append("Downloads at about \(file.width) × \(file.height)")
+        }
+        parts.append("From \(video.provider.title)")
         return parts.joined(separator: "  ·  ")
     }
 
-    private func startPreview() {
-        guard player == nil, let file = video.previewFile else { return }
+    private func startPreview() async {
+        guard player == nil else { return }
+        files = (try? await video.provider.client.files(for: video)) ?? []
+        guard let file = RemoteVideo.File.best(in: files, covering: 960) else { return }
         let player = AVQueuePlayer()
         player.isMuted = true
         looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: file.url))

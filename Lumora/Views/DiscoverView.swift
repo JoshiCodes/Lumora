@@ -11,7 +11,7 @@ struct DiscoverView: View {
     var body: some View {
         content
             .navigationTitle("Discover")
-            .searchable(text: $model.query, placement: .toolbar, prompt: "Search \(model.provider.title)")
+            .searchable(text: $model.query, placement: .toolbar, prompt: model.provider.searchPrompt)
             .onSubmit(of: .search) { model.reload() }
             .onChange(of: model.query) { _, query in
                 if query.isEmpty { model.reload() }
@@ -109,9 +109,9 @@ struct RemoteVideoCard: View {
                     }
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    DurationBadge(text: video.maxWidth >= 3840
-                                  ? "4K  \(Clip.format(video.duration))"
-                                  : Clip.format(video.duration))
+                    if let badge {
+                        DurationBadge(text: badge)
+                    }
                 }
                 .overlay(alignment: .topTrailing) {
                     DownloadButton(video: video)
@@ -137,6 +137,13 @@ struct RemoteVideoCard: View {
         .contentShape(Rectangle())
         .animation(.easeOut(duration: 0.15), value: isHovering)
         .onHover { isHovering = $0 }
+    }
+
+    private var badge: String? {
+        var parts: [String] = []
+        if video.maxWidth >= 3840 { parts.append("4K") }
+        if video.duration > 0 { parts.append(Clip.format(video.duration)) }
+        return parts.isEmpty ? nil : parts.joined(separator: "  ")
     }
 
     private var isBusyOrOwned: Bool {

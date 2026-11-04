@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum Pane: String, Hashable {
-    case nowPlaying, library, discover, screenSaver, settings
+    case nowPlaying, library, discover, screenSaver, performance, settings
 }
 
 struct MainView: View {
@@ -24,6 +24,7 @@ struct MainView: View {
                 }
                 Section("Mac") {
                     Label("Screen Saver", systemImage: "moon.stars").tag(Pane.screenSaver)
+                    Label("Performance", systemImage: "gauge.with.dots.needle.33percent").tag(Pane.performance)
                     Label("Settings", systemImage: "gearshape").tag(Pane.settings)
                 }
             }
@@ -34,6 +35,7 @@ struct MainView: View {
             case .library: LibraryView()
             case .discover: DiscoverView()
             case .screenSaver: ScreenSaverPane()
+            case .performance: PerformancePane()
             case .settings: SettingsPane()
             }
         }

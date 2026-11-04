@@ -4,7 +4,7 @@ import Combine
 @MainActor
 final class ScreenSaverManager: ObservableObject {
     @Published private(set) var isInstalled = false
-    @Published private(set) var hostIsReady = false
+    @Published private(set) var isSyncing = false
     @Published private(set) var selection: Set<UUID>
     @Published var errorMessage: String?
 
@@ -140,32 +140,32 @@ final class ScreenSaverManager: ObservableObject {
 
     private func refreshStatus() {
         isInstalled = fileManager.fileExists(atPath: installURL.path)
-        hostIsReady = fileManager.fileExists(atPath: hostContainerURL.path)
     }
 
     // MARK: - Sync
 
-    private var hostContainerURL: URL {
-        fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Containers/\(SaverManifest.hostBundleID)", isDirectory: true)
+    private var clipsURL: URL {
+        installURL.appendingPathComponent("Contents/Resources/\(SaverManifest.folderName)", isDirectory: true)
     }
 
-    private var hostSupportURL: URL {
-        hostContainerURL.appendingPathComponent("Data/Library/Application Support/\(SaverManifest.folderName)", isDirectory: true)
-    }
-
-    /// Mirrors the selected clips into the screen saver's sandbox. Hard links cost no extra disk space.
+    /// Hard-links the selected clips into the installed saver bundle. Hard links take no extra
+    /// disk space, and the saver can always read its own bundle from inside its sandbox.
     func sync() {
-        // The container only exists once macOS has run a third-party saver.
-        // Creating it ourselves would leave it without the metadata macOS expects.
-        guard isInstalled, hostIsReady else { return }
+        guard isInstalled else { return }
 
-        let folder = hostSupportURL
+        let folder = clipsURL
         let wanted = library.clips.filter { selection.contains($0.id) }
+        let manifest = SaverManifest(clips: wanted.map(\.fileName), fillsScreen: preferences.scaling == .fill)
+        let manifestURL = folder.appendingPathComponent(SaverManifest.fileName)
+
+        let current = (try? Data(contentsOf: manifestURL)).flatMap { try? JSONDecoder().decode(SaverManifest.self, from: $0) }
+        let filesPresent = wanted.allSatisfy { fileManager.fileExists(atPath: folder.appendingPathComponent($0.fileName).path) }
+        guard current != manifest || !filesPresent else { return }
+
         do {
             try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
 
-            let wantedNames = Set(wanted.map(\.fileName))
+            let wantedNames = Set(manifest.clips)
             for existing in (try? fileManager.contentsOfDirectory(atPath: folder.path)) ?? []
             where existing != SaverManifest.fileName && !wantedNames.contains(existing) {
                 try? fileManager.removeItem(at: folder.appendingPathComponent(existing))
@@ -182,12 +182,29 @@ final class ScreenSaverManager: ObservableObject {
                 }
             }
 
-            let manifest = SaverManifest(clips: wanted.map(\.fileName), fillsScreen: preferences.scaling == .fill)
-            let data = try JSONEncoder().encode(manifest)
-            try data.write(to: folder.appendingPathComponent(SaverManifest.fileName), options: .atomic)
+            try JSONEncoder().encode(manifest).write(to: manifestURL, options: .atomic)
             errorMessage = nil
         } catch {
             errorMessage = "Couldn't prepare the screen saver: \(error.localizedDescription)"
+            return
+        }
+
+        resign()
+    }
+
+    /// Adding files changes the bundle's contents, so refresh its ad-hoc signature.
+    private func resign() {
+        let path = installURL.path
+        isSyncing = true
+        Task.detached(priority: .utility) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+            process.arguments = ["--force", "--sign", "-", path]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try? process.run()
+            process.waitUntilExit()
+            await MainActor.run { [weak self] in self?.isSyncing = false }
         }
     }
 }

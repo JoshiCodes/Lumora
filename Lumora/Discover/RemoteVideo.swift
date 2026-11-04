@@ -1,6 +1,8 @@
 import Foundation
 
 enum ProviderID: String, CaseIterable, Identifiable, Codable {
+    case nasa
+    case archive
     case pexels
     case pixabay
 
@@ -8,13 +10,24 @@ enum ProviderID: String, CaseIterable, Identifiable, Codable {
 
     var title: String {
         switch self {
+        case .nasa: "NASA"
+        case .archive: "Internet Archive"
         case .pexels: "Pexels"
         case .pixabay: "Pixabay"
         }
     }
 
+    var needsKey: Bool {
+        switch self {
+        case .nasa, .archive: false
+        case .pexels, .pixabay: true
+        }
+    }
+
     var homepage: URL {
         switch self {
+        case .nasa: URL(string: "https://images.nasa.gov")!
+        case .archive: URL(string: "https://archive.org/details/movies")!
         case .pexels: URL(string: "https://www.pexels.com")!
         case .pixabay: URL(string: "https://pixabay.com")!
         }
@@ -24,11 +37,22 @@ enum ProviderID: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .pexels: URL(string: "https://www.pexels.com/api/new/")!
         case .pixabay: URL(string: "https://pixabay.com/api/docs/")!
+        case .nasa, .archive: homepage
+        }
+    }
+
+    var searchPrompt: String {
+        switch self {
+        case .nasa: "Search NASA, e.g. Earth, Aurora, Mars"
+        case .archive: "Search the Internet Archive"
+        case .pexels, .pixabay: "Search \(title)"
         }
     }
 
     var client: VideoProvider {
         switch self {
+        case .nasa: NASAProvider()
+        case .archive: ArchiveProvider()
         case .pexels: PexelsProvider()
         case .pixabay: PixabayProvider()
         }
@@ -50,6 +74,8 @@ struct RemoteVideo: Identifiable, Hashable {
     let thumbnailURL: URL?
     let duration: TimeInterval
     let files: [File]
+    /// Some providers only list files in a second request. See `VideoProvider.files(for:)`.
+    var detailsURL: URL? = nil
 
     var credit: String { "\(author) on \(provider.title)" }
 
@@ -57,8 +83,7 @@ struct RemoteVideo: Identifiable, Hashable {
 
     /// Smallest file that still covers `pixelWidth`, so we never decode more pixels than the display shows.
     func file(covering pixelWidth: Int) -> File? {
-        let sorted = files.sorted { $0.width < $1.width }
-        return sorted.first { $0.width >= pixelWidth } ?? sorted.last
+        File.best(in: files, covering: pixelWidth)
     }
 
     var previewFile: File? { file(covering: 960) }
@@ -66,6 +91,28 @@ struct RemoteVideo: Identifiable, Hashable {
 
 protocol VideoProvider {
     func videos(matching query: String, page: Int, apiKey: String) async throws -> [RemoteVideo]
+    func files(for video: RemoteVideo) async throws -> [RemoteVideo.File]
+}
+
+extension VideoProvider {
+    func files(for video: RemoteVideo) async throws -> [RemoteVideo.File] {
+        video.files
+    }
+}
+
+extension RemoteVideo.File {
+    static func best(in files: [RemoteVideo.File], covering pixelWidth: Int) -> RemoteVideo.File? {
+        let sorted = files.sorted { $0.width < $1.width }
+        return sorted.first { $0.width >= pixelWidth } ?? sorted.last
+    }
+}
+
+enum ResolveError: LocalizedError {
+    case noPlayableFile
+
+    var errorDescription: String? {
+        "This video has no file that macOS can play."
+    }
 }
 
 enum ProviderError: LocalizedError {

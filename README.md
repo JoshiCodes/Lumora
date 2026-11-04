@@ -7,7 +7,8 @@ Live video wallpapers for macOS. Bring your own clips or find new ones from NASA
 - **Rotation:** change the wallpaper every few minutes, hours or once a day, in order or shuffled
 - **Smooth switching:** wallpapers cross-fade instead of cutting through black
 - **Discover:** browse and search NASA, the Internet Archive, Pexels and Pixabay, preview a clip and set it as your wallpaper in one click
-- **Screen Saver:** a matching screen saver that plays videos from your library, also on top of the lock screen
+- **Animated lock screen** (experimental): your wallpaper keeps moving on the lock screen
+- **Screen Saver:** a matching screen saver that plays videos from your library
 - **Performance:** live CPU, memory and GPU readings, details about the current video, and an impact test
 - **Optimize:** new videos are converted to HEVC at up to 30 fps and your display's resolution, existing ones with one click
 - **Automatic updates** from GitHub releases
@@ -73,7 +74,19 @@ Open the **Screen Saver** tab, click **Install** and pick Lumora under **System 
 
 macOS runs third-party screen savers in a sandbox that can't see Lumora's library. Lumora therefore hard-links the selected videos into the installed `Lumora.saver` bundle, which the screen saver can always read. Hard links take no extra disk space.
 
-A truly animated lock screen like Apple's Aerials isn't possible with public APIs. While the Mac is locked and idle, the screen saver plays on top of the lock screen, and the lock screen picture itself matches the first frame of your wallpaper.
+macOS keeps a separate screen saver for each display. With several screens, select Lumora for each one in System Settings.
+
+## Animated lock screen
+
+macOS only animates its own Aerial wallpapers on the lock screen, and there is no public API for anything else. Lumora therefore steps in for one of them:
+
+1. Download any Aerial in **System Settings → Wallpaper**.
+2. In Lumora's **Lock Screen** tab, pick that Aerial and click **Set Up**. macOS asks for your password once. Lumora takes ownership of that single video file and keeps a backup of Apple's original.
+3. Choose the same Aerial as your wallpaper in System Settings.
+
+From then on the lock screen plays whatever is on your desktop and follows every change, converted to HEVC when needed. **Restore Apple's Video** puts the original back. While this is on, Lumora doesn't set a still desktop picture, since that would replace the Aerial.
+
+This relies on how macOS stores Aerials internally. A macOS update can bring back Apple's file, in which case Lumora asks you to set it up again.
 
 ## Building
 

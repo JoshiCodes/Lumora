@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let screenSaver: ScreenSaverManager
     let performance: PerformanceMonitor
     let updater: Updater
+    let lockScreen: LockScreenManager
     private var subscriptions = Set<AnyCancellable>()
 
     override init() {
@@ -24,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         screenSaver = ScreenSaverManager(library: library, preferences: preferences)
         performance = PerformanceMonitor(library: library, wallpaper: wallpaper)
         updater = Updater()
+        lockScreen = LockScreenManager(library: library, preferences: preferences)
         super.init()
     }
 
@@ -33,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &subscriptions)
         wallpaper.start()
         screenSaver.start()
+        lockScreen.start()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -51,5 +54,6 @@ extension View {
             .environmentObject(delegate.screenSaver)
             .environmentObject(delegate.performance)
             .environmentObject(delegate.updater)
+            .environmentObject(delegate.lockScreen)
     }
 }

@@ -18,7 +18,7 @@ struct SettingsPane: View {
                 }
                 Toggle(isOn: $preferences.matchDesktopPicture) {
                     Text("Match desktop picture")
-                    Text("Uses the first frame as your regular wallpaper, so Mission Control and the lock screen look the same.")
+                    Text("Uses the first frame as your regular wallpaper, so Mission Control and the lock screen look the same. Turn this off when you use the animated lock screen.")
                 }
             }
 

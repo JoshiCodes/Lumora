@@ -23,7 +23,7 @@ struct MainView: View {
                     Label("Discover", systemImage: "sparkle.magnifyingglass").tag(Pane.discover)
                 }
                 Section("Mac") {
-                    Label("Screen Saver", systemImage: "moon.stars").tag(Pane.screenSaver)
+                    Label("Lock Screen", systemImage: "lock.display").tag(Pane.screenSaver)
                     Label("Performance", systemImage: "gauge.with.dots.needle.33percent").tag(Pane.performance)
                     Label("Settings", systemImage: "gearshape").tag(Pane.settings)
                 }

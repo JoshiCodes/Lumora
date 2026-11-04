@@ -188,6 +188,7 @@ final class VideoLibrary: ObservableObject {
         var scale: CGFloat
         var frameRate: Float
         var hardwareDecoded: Bool
+        var isHEVC = false
 
         var capsFrameRate: Bool { frameRate > 31 }
 
@@ -208,10 +209,11 @@ final class VideoLibrary: ObservableObject {
         let scale = size.width > CGFloat(targetWidth) ? CGFloat(targetWidth) / size.width : 1
 
         return OptimizationPlan(size: size, scale: scale, frameRate: frameRate,
-                                hardwareDecoded: VTIsHardwareDecodeSupported(codec))
+                                hardwareDecoded: VTIsHardwareDecodeSupported(codec),
+                                isHEVC: codec == kCMVideoCodecType_HEVC)
     }
 
-    private nonisolated static func encode(from source: URL, to destination: URL, plan: OptimizationPlan) async throws {
+    nonisolated static func encode(from source: URL, to destination: URL, plan: OptimizationPlan) async throws {
         let asset = AVURLAsset(url: source)
         guard let video = try await asset.loadTracks(withMediaType: .video).first else {
             throw ImportError.unsupported(source.lastPathComponent)

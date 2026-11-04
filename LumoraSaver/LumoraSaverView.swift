@@ -106,11 +106,22 @@ final class LumoraSaverView: ScreenSaverView {
         if window != nil { SharedPlayback.play() }
     }
 
+    // Secondary displays get their view at zero size first and are resized afterwards.
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        fitLayers()
+    }
+
     override func layout() {
         super.layout()
+        fitLayers()
+    }
+
+    private func fitLayers() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        playerLayer.frame = bounds
+        rootLayer.frame = bounds
+        playerLayer.frame = rootLayer.bounds
         layoutMessage()
         CATransaction.commit()
     }
@@ -123,6 +134,7 @@ final class LumoraSaverView: ScreenSaverView {
         animationTimeInterval = 1
 
         playerLayer.frame = bounds
+        playerLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         playerLayer.backgroundColor = NSColor.black.cgColor
         rootLayer.addSublayer(playerLayer)
 

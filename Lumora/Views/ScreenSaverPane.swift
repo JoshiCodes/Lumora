@@ -9,9 +9,19 @@ struct ScreenSaverPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
+                LockScreenSection()
                 statusCard
                 if saver.isInstalled {
                     picker
+                }
+                if NSScreen.screens.count > 1 {
+                    Label {
+                        Text("With several displays, macOS keeps a separate screen saver for each one. In System Settings › Screen Saver, switch to each display and choose Lumora there too.")
+                    } icon: {
+                        Image(systemName: "display.2")
+                    }
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
                 }
                 Label {
                     Text("When your Mac is locked and idle, the screen saver also plays on top of the lock screen. The lock screen picture itself is the first frame of your current wallpaper.")
@@ -25,7 +35,7 @@ struct ScreenSaverPane: View {
             .frame(maxWidth: 1100, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-        .navigationTitle("Screen Saver")
+        .navigationTitle("Lock Screen")
         .alert("Screen Saver", isPresented: errorBinding, presenting: saver.errorMessage) { _ in
             Button("OK") {}
         } message: { Text($0) }
@@ -82,12 +92,15 @@ struct ScreenSaverPane: View {
     }
 
     private var title: String {
-        saver.isInstalled ? "Lumora Screen Saver" : "Bring your videos to the screen saver"
+        saver.isInstalled ? "Screen Saver" : "Bring your videos to the screen saver"
     }
 
     private var message: String {
         if !saver.isInstalled {
             return "Installs a screen saver that plays videos from your library. You choose it in System Settings afterwards."
+        }
+        if NSScreen.screens.count > 1, saver.selection.isEmpty {
+            return "Choose which videos it should play. macOS sets the screen saver per display, so pick Lumora for each of your screens in System Settings."
         }
         if saver.selection.isEmpty {
             return "Choose which videos it should play."

@@ -7,9 +7,14 @@ struct DiscoverView: View {
     @State private var selected: RemoteVideo?
 
     private let columns = [GridItem(.adaptive(minimum: 240, maximum: 340), spacing: 18)]
+    private let topics = ["Earth", "Ocean", "Aurora", "Galaxy", "Clouds", "Forest", "Rain",
+                          "Mountains", "City Lights", "Sunset", "Abstract", "Fire"]
 
     var body: some View {
         content
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if !model.needsKey { topicBar }
+            }
             .navigationTitle("Discover")
             .searchable(text: $model.query, placement: .toolbar, prompt: model.provider.searchPrompt)
             .onSubmit(of: .search) { model.reload() }
@@ -34,6 +39,25 @@ struct DiscoverView: View {
             .alert("Download failed", isPresented: failureBinding, presenting: downloads.failure) { _ in
                 Button("OK") {}
             } message: { Text($0) }
+    }
+
+    private var topicBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(topics, id: \.self) { topic in
+                    let selected = model.query.caseInsensitiveCompare(topic) == .orderedSame
+                    Button(topic) {
+                        model.query = selected ? "" : topic
+                        model.reload()
+                    }
+                    .buttonStyle(TopicChipStyle(isSelected: selected))
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 10)
+        }
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     @ViewBuilder
@@ -242,5 +266,24 @@ struct KeyPrompt: View {
         keys.setKey(key, for: provider)
         key = ""
         model.reload()
+    }
+}
+
+struct TopicChipStyle: ButtonStyle {
+    let isSelected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.callout.weight(.medium))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .background {
+                Capsule()
+                    .fill(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.primary.opacity(0.07)))
+            }
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .contentShape(Capsule())
+            .animation(.easeOut(duration: 0.15), value: isSelected)
     }
 }

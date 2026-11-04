@@ -109,7 +109,7 @@ final class PerformanceMonitor: ObservableObject {
             samples.removeFirst(samples.count - Self.window)
         }
 
-        if let event = wallpaper.player.currentItem?.accessLog()?.events.last, event.numberOfDroppedVideoFrames >= 0 {
+        if let event = wallpaper.player?.currentItem?.accessLog()?.events.last, event.numberOfDroppedVideoFrames >= 0 {
             droppedFrames = event.numberOfDroppedVideoFrames
         } else {
             droppedFrames = nil

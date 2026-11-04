@@ -107,9 +107,15 @@ final class VideoLibrary: ObservableObject {
         return clip
     }
 
+    /// Encodes run one after another. A batch import shouldn't start a dozen HEVC encoders at once.
     private func optimizeIfWanted(_ clip: Clip) {
         guard optimizesNewClips else { return }
-        Task { await optimize(clip) }
+        let previous = optimizationQueue
+        optimizationQueue = Task {
+            await previous?.value
+            guard let current = self.clip(withID: clip.id) else { return }
+            await optimize(current)
+        }
     }
 
     func rename(_ clip: Clip, to name: String) {
@@ -134,6 +140,7 @@ final class VideoLibrary: ObservableObject {
 
     /// Set from preferences. New imports and downloads are optimized right after they're added.
     var optimizesNewClips = false
+    private var optimizationQueue: Task<Void, Never>?
 
     func needsOptimization(_ clip: Clip) async -> Bool {
         await Self.plan(for: videoURL(for: clip), targetWidth: NSScreen.widestPixelWidth)?.isWorthIt ?? false

@@ -31,6 +31,17 @@ struct ClipCard: View {
                     DurationBadge(text: clip.durationText)
                 }
                 .overlay {
+                    if isHovering, !isActive, isChecked == nil, !isBusy {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .environment(\.colorScheme, .dark)
+                            .transition(.scale(scale: 0.8).combined(with: .opacity))
+                    }
+                }
+                .overlay {
                     if isBusy {
                         ZStack {
                             Color.black.opacity(0.45)

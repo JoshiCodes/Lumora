@@ -9,7 +9,7 @@ struct LumoraApp: App {
             MenuContent()
                 .lumoraEnvironment(delegate)
         } label: {
-            Image(systemName: "sparkles")
+            MenuBarIcon(wallpaper: delegate.wallpaper)
         }
 
         Window("Lumora", id: WindowID.main) {
@@ -28,4 +28,12 @@ struct LumoraApp: App {
 
 enum WindowID {
     static let main = "main"
+}
+
+private struct MenuBarIcon: View {
+    @ObservedObject var wallpaper: WallpaperController
+
+    var body: some View {
+        Image(systemName: wallpaper.isUserPaused ? "pause.circle" : "sparkles")
+    }
 }

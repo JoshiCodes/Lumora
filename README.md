@@ -3,7 +3,9 @@
 Live video wallpapers for macOS. Bring your own clips or find new ones from NASA, the Internet Archive, Pexels and Pixabay, and Lumora plays them behind your desktop icons on every display and every Space.
 
 - **Now Playing:** live preview of what's on your desktop, with pause, stop and scaling
-- **Library:** drag and drop your own videos, rename them, filter them
+- **Library:** drag and drop your own videos, rename, sort and filter them
+- **Rotation:** change the wallpaper every few minutes, hours or once a day, in order or shuffled
+- **Smooth switching:** wallpapers cross-fade instead of cutting through black
 - **Discover:** browse and search NASA, the Internet Archive, Pexels and Pixabay, preview a clip and set it as your wallpaper in one click
 - **Screen Saver:** a matching screen saver that plays videos from your library, also on top of the lock screen
 - **Performance:** live CPU, memory and GPU readings, details about the current video, and an impact test
@@ -19,7 +21,10 @@ Requires macOS 15 or later on Apple Silicon.
 - Audio tracks are dropped before playback, so nothing is decoded that you can't hear.
 - Downloads pick the smallest file that still covers your display instead of always grabbing 4K.
 - Videos are optimized when you add them: HEVC, at most 30 fps and no larger than your widest display.
+- Batch imports are encoded one at a time instead of all at once.
 - Playback stops while the desktop is hidden behind full-screen apps, while the screen is locked, asleep or showing the screen saver, when you've been away for a few minutes and when the Mac runs hot. Optionally also on battery or in Low Power Mode.
+- Reduce Motion in Accessibility settings is respected: Lumora shows a still picture instead.
+- The blurred backdrop in the app is rendered once, not live.
 - Video views never redraw on the CPU. Everything on screen comes straight from the video layer.
 - The Mac can still go to sleep while a wallpaper is playing.
 

@@ -28,7 +28,10 @@ struct MainView: View {
                     Label("Settings", systemImage: "gearshape").tag(Pane.settings)
                 }
             }
-            .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 260)
+            .safeAreaInset(edge: .bottom) {
+                MiniPlayer(pane: $pane)
+            }
+            .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
         } detail: {
             switch pane {
             case .nowPlaying: NowPlayingView(pane: $pane)

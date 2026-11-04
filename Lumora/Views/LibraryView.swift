@@ -10,11 +10,20 @@ struct LibraryView: View {
     @State private var clipToRename: Clip?
     @State private var draftName = ""
     @State private var filter = ""
+    @State private var clipToRemove: Clip?
+    @AppStorage("librarySort") private var sort: LibrarySort = .newest
 
     private var visibleClips: [Clip] {
         let query = filter.trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty else { return library.clips }
-        return library.clips.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        let matching = query.isEmpty
+            ? library.clips
+            : library.clips.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        switch sort {
+        case .newest: return matching.sorted { $0.addedAt > $1.addedAt }
+        case .oldest: return matching.sorted { $0.addedAt < $1.addedAt }
+        case .name: return matching.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        case .duration: return matching.sorted { $0.duration > $1.duration }
+        }
     }
 
     private let columns = [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 18)]
@@ -48,6 +57,11 @@ struct LibraryView: View {
             guard case .success(let urls) = result else { return }
             Task { await library.importFiles(urls) }
         }
+        .confirmationDialog("Remove “\(clipToRemove?.name ?? "")”?", isPresented: removeBinding, presenting: clipToRemove) { clip in
+            Button("Remove", role: .destructive) { library.remove(clip) }
+        } message: { _ in
+            Text("The video is deleted from Lumora's library. Files you imported from Finder stay where they were.")
+        }
         .alert("Rename Video", isPresented: renameBinding) {
             TextField("Name", text: $draftName)
             Button("Rename") {
@@ -70,11 +84,22 @@ struct LibraryView: View {
                     .controlSize(.small)
                     .help("Importing…")
             }
+            Menu {
+                Picker("Sort By", selection: $sort) {
+                    ForEach(LibrarySort.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Label("Sort", systemImage: "arrow.up.arrow.down")
+            }
+            .help("Sort")
+
             Button {
                 showingImporter = true
             } label: {
                 Label("Add Videos", systemImage: "plus")
             }
+            .help("Add Videos")
         }
     }
 
@@ -113,7 +138,7 @@ struct LibraryView: View {
             NSWorkspace.shared.activateFileViewerSelecting([library.videoURL(for: clip)])
         }
         Divider()
-        Button("Remove from Library", role: .destructive) { library.remove(clip) }
+        Button("Remove from Library…", role: .destructive) { clipToRemove = clip }
     }
 
     private var emptyState: some View {
@@ -125,6 +150,10 @@ struct LibraryView: View {
             Button("Add Videos…") { showingImporter = true }
                 .buttonStyle(.borderedProminent)
         }
+    }
+
+    private var removeBinding: Binding<Bool> {
+        Binding(get: { clipToRemove != nil }, set: { if !$0 { clipToRemove = nil } })
     }
 
     private var renameBinding: Binding<Bool> {
@@ -139,5 +168,20 @@ struct LibraryView: View {
 private extension URL {
     var isMovie: Bool {
         UTType(filenameExtension: pathExtension)?.conforms(to: .movie) ?? false
+    }
+}
+
+enum LibrarySort: String, CaseIterable, Identifiable {
+    case newest, oldest, name, duration
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .newest: "Newest First"
+        case .oldest: "Oldest First"
+        case .name: "Name"
+        case .duration: "Longest First"
+        }
     }
 }

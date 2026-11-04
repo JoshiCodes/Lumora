@@ -2,7 +2,7 @@ import AVFoundation
 import SwiftUI
 
 struct PlayerPreview: NSViewRepresentable {
-    let player: AVPlayer
+    let player: AVPlayer?
     var gravity: AVLayerVideoGravity = .resizeAspectFill
 
     func makeNSView(context: Context) -> PlayerView {
@@ -13,5 +13,6 @@ struct PlayerPreview: NSViewRepresentable {
 
     func updateNSView(_ view: PlayerView, context: Context) {
         view.videoGravity = gravity
+        view.show(player, animated: true)
     }
 }

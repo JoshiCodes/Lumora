@@ -16,6 +16,12 @@ struct MenuContent: View {
                 wallpaper.togglePause()
             }
             .keyboardShortcut("p")
+            if wallpaper.canSkip {
+                Button("Next Wallpaper") {
+                    wallpaper.next()
+                }
+                .keyboardShortcut("n")
+            }
             Button("Stop") {
                 wallpaper.stop()
             }

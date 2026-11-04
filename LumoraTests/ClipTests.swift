@@ -10,3 +10,39 @@ final class ClipTests: XCTestCase {
         XCTAssertEqual(Clip.format(.nan), "0:00")
     }
 }
+
+final class OptimizationPlanTests: XCTestCase {
+    func testSixtyFramesIsWorthOptimizing() {
+        let plan = VideoLibrary.OptimizationPlan(size: CGSize(width: 1920, height: 1080), scale: 1,
+                                                 frameRate: 59.94, hardwareDecoded: true)
+        XCTAssertTrue(plan.isWorthIt)
+    }
+
+    func testEfficientClipIsLeftAlone() {
+        let plan = VideoLibrary.OptimizationPlan(size: CGSize(width: 3840, height: 2160), scale: 0.95,
+                                                 frameRate: 30, hardwareDecoded: true)
+        XCTAssertFalse(plan.isWorthIt)
+    }
+
+    func testSoftwareCodecIsWorthOptimizing() {
+        let plan = VideoLibrary.OptimizationPlan(size: CGSize(width: 1920, height: 1080), scale: 1,
+                                                 frameRate: 24, hardwareDecoded: false)
+        XCTAssertTrue(plan.isWorthIt)
+    }
+}
+
+final class RemoteFileTests: XCTestCase {
+    private func file(_ width: Int) -> RemoteVideo.File {
+        RemoteVideo.File(url: URL(string: "https://example.com/\(width).mp4")!, width: width, height: width * 9 / 16)
+    }
+
+    func testPicksSmallestFileCoveringTheDisplay() {
+        let files = [file(3840), file(1280), file(2560), file(1920)]
+        XCTAssertEqual(RemoteVideo.File.best(in: files, covering: 2000)?.width, 2560)
+    }
+
+    func testFallsBackToLargestFile() {
+        let files = [file(1280), file(1920)]
+        XCTAssertEqual(RemoteVideo.File.best(in: files, covering: 3024)?.width, 1920)
+    }
+}

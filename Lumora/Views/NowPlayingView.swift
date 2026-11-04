@@ -22,6 +22,7 @@ struct NowPlayingView: View {
             .frame(maxWidth: 1100)
             .frame(maxWidth: .infinity)
         }
+        .background { backdrop }
         .navigationTitle("Now Playing")
     }
 
@@ -46,6 +47,26 @@ struct NowPlayingView: View {
                 statusPill.padding(14)
             }
         }
+    }
+
+    /// Soft, blurred version of the current clip behind the page.
+    private var backdrop: some View {
+        ZStack {
+            if let clip = library.activeClip {
+                ThumbnailImage(url: library.thumbnailURL(for: clip), blur: 40)
+                    .opacity(0.32)
+                    .id(clip.id)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.6), value: library.activeClipID)
+        .overlay {
+            LinearGradient(colors: [.clear, Color(nsColor: .windowBackgroundColor)],
+                           startPoint: .top, endPoint: .bottom)
+        }
+        .ignoresSafeArea()
+        .clipped()
+        .allowsHitTesting(false)
     }
 
     private var statusPill: some View {
@@ -92,8 +113,9 @@ struct NowPlayingView: View {
                 Text(clip.name)
                     .font(.title2.weight(.semibold))
                     .lineLimit(1)
-                Text([clip.durationText, clip.credit].compactMap { $0 }.joined(separator: "  ·  "))
+                Text([clip.durationText, clip.credit, rotationText].compactMap { $0 }.joined(separator: "  ·  "))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             Spacer()
             Picker("Scaling", selection: $preferences.scaling) {
@@ -112,9 +134,23 @@ struct NowPlayingView: View {
             }
             .buttonStyle(.borderedProminent)
 
+            if wallpaper.canSkip {
+                Button {
+                    wallpaper.next()
+                } label: {
+                    Label("Next", systemImage: "forward.fill")
+                }
+                .help("Next Wallpaper")
+            }
+
             Button("Stop") { wallpaper.stop() }
         }
         .controlSize(.large)
+    }
+
+    private var rotationText: String? {
+        guard let next = wallpaper.nextRotation else { return nil }
+        return "Next change at \(next.formatted(date: .omitted, time: .shortened))"
     }
 
     private var recents: some View {

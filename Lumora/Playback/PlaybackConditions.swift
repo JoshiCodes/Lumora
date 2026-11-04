@@ -12,6 +12,7 @@ final class PlaybackConditions: ObservableObject {
     @Published private(set) var isScreenSaverRunning = false
     @Published private(set) var isUserIdle = false
     @Published private(set) var isOverheating = false
+    @Published private(set) var prefersReducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 
     /// Seconds without keyboard or mouse input before the user counts as away. Zero turns it off.
     var idleThreshold: TimeInterval = 0 {
@@ -31,6 +32,9 @@ final class PlaybackConditions: ObservableObject {
         observe(workspace, NSWorkspace.didWakeNotification) { $0.isAsleep = false }
         observe(workspace, NSWorkspace.sessionDidResignActiveNotification) { $0.isSessionInactive = true }
         observe(workspace, NSWorkspace.sessionDidBecomeActiveNotification) { $0.isSessionInactive = false }
+        observe(workspace, NSWorkspace.accessibilityDisplayOptionsDidChangeNotification) {
+            $0.prefersReducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        }
 
         let distributed = DistributedNotificationCenter.default()
         observe(distributed, Notification.Name("com.apple.screenIsLocked")) { $0.isLocked = true }

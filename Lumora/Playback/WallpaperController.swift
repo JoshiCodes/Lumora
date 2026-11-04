@@ -8,14 +8,17 @@ final class WallpaperController: ObservableObject {
     @Published private(set) var isPlaying = false
     @Published private(set) var pauseReason: String?
     @Published private(set) var isHeldForMeasurement = false
+    /// The player for the current clip. Desktop windows and the in-app preview share it,
+    /// so the video is only decoded once. Each clip gets a fresh player so the views can cross-fade.
+    @Published private(set) var player: AVQueuePlayer?
+    @Published private(set) var nextRotation: Date?
 
     private let library: VideoLibrary
     private let preferences: Preferences
     private let conditions = PlaybackConditions()
 
-    /// Shared by every desktop window and the in-app preview, so the video is only decoded once.
-    let player = AVQueuePlayer()
     private var looper: AVPlayerLooper?
+    private var rotationTimer: Timer?
     private var loadedClipID: UUID?
     private var loadedFileName: String?
     private var loadGeneration = 0
@@ -27,9 +30,14 @@ final class WallpaperController: ObservableObject {
     init(library: VideoLibrary, preferences: Preferences) {
         self.library = library
         self.preferences = preferences
+    }
+
+    private static func makePlayer() -> AVQueuePlayer {
+        let player = AVQueuePlayer()
         player.isMuted = true
         player.preventsDisplaySleepDuringVideoPlayback = false
         player.allowsExternalPlayback = false
+        return player
     }
 
     func start() {
@@ -42,7 +50,17 @@ final class WallpaperController: ObservableObject {
         // Picks up a re-encoded file after "Optimize".
         library.$clips
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.loadActiveClip() }
+            .sink { [weak self] _ in
+                guard let self else { return }
+                loadActiveClip()
+                if rotationTimer == nil { scheduleRotation() }
+            }
+            .store(in: &subscriptions)
+
+        preferences.$rotationMinutes
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.scheduleRotation() }
             .store(in: &subscriptions)
 
         preferences.$scaling
@@ -71,6 +89,8 @@ final class WallpaperController: ObservableObject {
             conditions.$isScreenSaverRunning,
             conditions.$isUserIdle,
             conditions.$isOverheating,
+            conditions.$prefersReducedMotion,
+            preferences.$respectReduceMotion,
             preferences.$pauseWhenHot,
             preferences.$pauseOnBattery,
             preferences.$pauseInLowPowerMode,
@@ -107,6 +127,39 @@ final class WallpaperController: ObservableObject {
         library.activeClipID = nil
     }
 
+    var canSkip: Bool { library.clips.count > 1 }
+
+    /// Switches to another clip, at random or in library order depending on the rotation setting.
+    func next() {
+        let clips = library.clips
+        guard clips.count > 1 else { return }
+        let currentIndex = clips.firstIndex { $0.id == library.activeClipID }
+
+        let pick: Clip?
+        if preferences.rotationShuffle || currentIndex == nil {
+            pick = clips.filter { $0.id != library.activeClipID }.randomElement()
+        } else {
+            pick = clips[(currentIndex! + 1) % clips.count]
+        }
+        if let pick { library.activeClipID = pick.id }
+    }
+
+    private func scheduleRotation() {
+        rotationTimer?.invalidate()
+        rotationTimer = nil
+        nextRotation = nil
+
+        let minutes = preferences.rotationMinutes
+        guard minutes > 0, loadedClipID != nil, library.clips.count > 1 else { return }
+
+        let interval = TimeInterval(minutes * 60)
+        nextRotation = Date().addingTimeInterval(interval)
+        rotationTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.next() }
+        }
+        rotationTimer?.tolerance = min(60, interval * 0.1)
+    }
+
     /// Lets the performance monitor measure the system without Lumora playing.
     func holdForMeasurement(_ hold: Bool) {
         isHeldForMeasurement = hold
@@ -119,11 +172,14 @@ final class WallpaperController: ObservableObject {
 
     private func loadActiveClip() {
         guard let clip = library.activeClip else {
-            tearDown()
+            if loadedClipID != nil || player != nil {
+                tearDown()
+            }
             restoreDesktopPictures()
             return
         }
-        guard clip.id != loadedClipID || clip.fileName != loadedFileName else { return }
+        let isNewClip = clip.id != loadedClipID
+        guard isNewClip || clip.fileName != loadedFileName else { return }
 
         loadedClipID = clip.id
         loadedFileName = clip.fileName
@@ -135,14 +191,29 @@ final class WallpaperController: ObservableObject {
             let asset = await Self.silentAsset(for: url)
             guard generation == loadGeneration else { return }
 
-            looper?.disableLooping()
-            player.removeAllItems()
-            looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(asset: asset))
-            isUserPaused = false
+            let newPlayer = Self.makePlayer()
+            let newLooper = AVPlayerLooper(player: newPlayer, templateItem: AVPlayerItem(asset: asset))
+            let oldPlayer = player
+            let oldLooper = looper
+            player = newPlayer
+            looper = newLooper
 
-            syncWindows()
+            if isNewClip {
+                isUserPaused = false
+                scheduleRotation()
+            }
+            syncWindows(animated: oldPlayer != nil)
             if preferences.matchDesktopPicture { applyDesktopPicture() }
             updatePlayback()
+
+            // Keep the old player running until the cross-fade is over, then let it go.
+            if let oldPlayer {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    oldLooper?.disableLooping()
+                    oldPlayer.pause()
+                    oldPlayer.removeAllItems()
+                }
+            }
         }
     }
 
@@ -172,8 +243,12 @@ final class WallpaperController: ObservableObject {
         loadGeneration += 1
         looper?.disableLooping()
         looper = nil
-        player.pause()
-        player.removeAllItems()
+        player?.pause()
+        player?.removeAllItems()
+        player = nil
+        rotationTimer?.invalidate()
+        rotationTimer = nil
+        nextRotation = nil
         loadedClipID = nil
         loadedFileName = nil
         windows.values.forEach { $0.orderOut(nil) }
@@ -198,6 +273,8 @@ final class WallpaperController: ObservableObject {
             "Paused while the screen saver runs"
         } else if conditions.isUserIdle {
             "Paused while you're away"
+        } else if preferences.respectReduceMotion && conditions.prefersReducedMotion {
+            "Paused because Reduce Motion is on"
         } else if preferences.pauseWhenHot && conditions.isOverheating {
             "Paused while your Mac cools down"
         } else if preferences.pauseOnBattery && conditions.isOnBattery {
@@ -212,9 +289,9 @@ final class WallpaperController: ObservableObject {
 
         let shouldPlay = looper != nil && reason == nil
         if shouldPlay {
-            player.play()
+            player?.play()
         } else {
-            player.pause()
+            player?.pause()
         }
         isPlaying = shouldPlay
         pauseReason = reason
@@ -222,8 +299,8 @@ final class WallpaperController: ObservableObject {
 
     // MARK: - Windows
 
-    private func syncWindows() {
-        guard looper != nil else { return }
+    private func syncWindows(animated: Bool = false) {
+        guard let player else { return }
 
         let screens = NSScreen.screens
         let connected = Set(screens.map(\.displayID))
@@ -232,12 +309,25 @@ final class WallpaperController: ObservableObject {
             windows[id] = nil
         }
 
+        var addedScreen = false
         for screen in screens {
-            let window = windows[screen.displayID] ?? DesktopWindow(player: player)
+            let window: DesktopWindow
+            if let existing = windows[screen.displayID] {
+                window = existing
+            } else {
+                window = DesktopWindow()
+                addedScreen = true
+            }
             window.videoGravity = preferences.scaling.videoGravity
+            window.show(player, animated: animated)
             window.setFrame(screen.frame, display: true)
             window.orderFront(nil)
             windows[screen.displayID] = window
+        }
+
+        // A newly connected display should get the matching still picture too.
+        if addedScreen, !animated, preferences.matchDesktopPicture {
+            applyDesktopPicture()
         }
         updatePlayback()
     }

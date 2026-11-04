@@ -35,6 +35,9 @@ final class Preferences: ObservableObject {
         static let idleMinutes = "idleMinutes"
         static let pauseWhenHot = "pauseWhenHot"
         static let optimizeNewClips = "optimizeNewClips"
+        static let rotationMinutes = "rotationMinutes"
+        static let rotationShuffle = "rotationShuffle"
+        static let respectReduceMotion = "respectReduceMotion"
     }
 
     private let defaults: UserDefaults
@@ -68,6 +71,17 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(optimizeNewClips, forKey: Key.optimizeNewClips) }
     }
 
+    /// Zero means the wallpaper never changes on its own.
+    @Published var rotationMinutes: Int {
+        didSet { defaults.set(rotationMinutes, forKey: Key.rotationMinutes) }
+    }
+    @Published var rotationShuffle: Bool {
+        didSet { defaults.set(rotationShuffle, forKey: Key.rotationShuffle) }
+    }
+    @Published var respectReduceMotion: Bool {
+        didSet { defaults.set(respectReduceMotion, forKey: Key.respectReduceMotion) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         defaults.register(defaults: [
@@ -79,6 +93,9 @@ final class Preferences: ObservableObject {
             Key.idleMinutes: 5,
             Key.pauseWhenHot: true,
             Key.optimizeNewClips: true,
+            Key.rotationMinutes: 0,
+            Key.rotationShuffle: true,
+            Key.respectReduceMotion: true,
         ])
         scaling = Scaling(rawValue: defaults.string(forKey: Key.scaling) ?? "") ?? .fill
         pauseOnBattery = defaults.bool(forKey: Key.pauseOnBattery)
@@ -89,6 +106,9 @@ final class Preferences: ObservableObject {
         idleMinutes = max(1, defaults.integer(forKey: Key.idleMinutes))
         pauseWhenHot = defaults.bool(forKey: Key.pauseWhenHot)
         optimizeNewClips = defaults.bool(forKey: Key.optimizeNewClips)
+        rotationMinutes = max(0, defaults.integer(forKey: Key.rotationMinutes))
+        rotationShuffle = defaults.bool(forKey: Key.rotationShuffle)
+        respectReduceMotion = defaults.bool(forKey: Key.respectReduceMotion)
     }
 
     var launchAtLogin: Bool {

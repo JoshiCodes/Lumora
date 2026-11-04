@@ -22,6 +22,21 @@ struct SettingsPane: View {
                 }
             }
 
+            Section("Rotation") {
+                Picker("Change wallpaper", selection: $preferences.rotationMinutes) {
+                    Text("Never").tag(0)
+                    Divider()
+                    Text("Every 15 minutes").tag(15)
+                    Text("Every 30 minutes").tag(30)
+                    Text("Every hour").tag(60)
+                    Text("Every 3 hours").tag(180)
+                    Text("Every day").tag(1440)
+                }
+                if preferences.rotationMinutes > 0 {
+                    Toggle("Random order", isOn: $preferences.rotationShuffle)
+                }
+            }
+
             Section {
                 Toggle("Pause on battery power", isOn: $preferences.pauseOnBattery)
                 Toggle("Pause in Low Power Mode", isOn: $preferences.pauseInLowPowerMode)
@@ -36,6 +51,10 @@ struct SettingsPane: View {
                             Text(minutes == 1 ? "1 minute" : "\(minutes) minutes").tag(minutes)
                         }
                     }
+                }
+                Toggle(isOn: $preferences.respectReduceMotion) {
+                    Text("Respect Reduce Motion")
+                    Text("Shows a still picture while Reduce Motion is on in Accessibility settings.")
                 }
                 Toggle(isOn: $preferences.pauseWhenHot) {
                     Text("Pause when the Mac runs hot")

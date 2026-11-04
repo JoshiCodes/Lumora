@@ -3,7 +3,7 @@ import AppKit
 
 /// Borderless window that sits on the desktop layer, below the Finder icons.
 final class DesktopWindow: NSWindow {
-    convenience init(player: AVPlayer) {
+    convenience init() {
         self.init(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
@@ -13,29 +13,42 @@ final class DesktopWindow: NSWindow {
         backgroundColor = .black
         isReleasedWhenClosed = false
         animationBehavior = .none
-        contentView = PlayerView(player: player)
+        contentView = PlayerView()
     }
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
+    private var playerView: PlayerView? { contentView as? PlayerView }
+
+    func show(_ player: AVPlayer?, animated: Bool) {
+        playerView?.show(player, animated: animated)
+    }
+
     var videoGravity: AVLayerVideoGravity {
-        get { (contentView as? PlayerView)?.videoGravity ?? .resizeAspectFill }
-        set { (contentView as? PlayerView)?.videoGravity = newValue }
+        get { playerView?.videoGravity ?? .resizeAspectFill }
+        set { playerView?.videoGravity = newValue }
     }
 }
 
+/// Shows a player and cross-fades to the next one once its first frame is ready,
+/// so switching wallpapers never flashes black.
 final class PlayerView: NSView {
-    private let playerLayer: AVPlayerLayer
+    private var current: AVPlayerLayer?
+    private var readyObservation: NSKeyValueObservation?
 
-    init(player: AVPlayer) {
-        playerLayer = AVPlayerLayer(player: player)
-        playerLayer.backgroundColor = NSColor.black.cgColor
-        playerLayer.videoGravity = .resizeAspectFill
+    var videoGravity: AVLayerVideoGravity = .resizeAspectFill {
+        didSet {
+            layer?.sublayers?.compactMap { $0 as? AVPlayerLayer }.forEach { $0.videoGravity = videoGravity }
+        }
+    }
+
+    init(player: AVPlayer? = nil) {
         super.init(frame: .zero)
         wantsLayer = true
-        // Everything on screen comes from the player layer, so AppKit never needs to redraw.
+        // Everything on screen comes from the player layers, so AppKit never needs to redraw.
         layerContentsRedrawPolicy = .never
+        show(player, animated: false)
     }
 
     required init?(coder: NSCoder) {
@@ -43,12 +56,66 @@ final class PlayerView: NSView {
     }
 
     override func makeBackingLayer() -> CALayer {
-        playerLayer
+        let layer = CALayer()
+        layer.backgroundColor = NSColor.black.cgColor
+        return layer
     }
 
-    var videoGravity: AVLayerVideoGravity {
-        get { playerLayer.videoGravity }
-        set { playerLayer.videoGravity = newValue }
+    func show(_ player: AVPlayer?, animated: Bool) {
+        guard current?.player !== player else { return }
+
+        // Drop anything left over from a fade that was interrupted by another switch.
+        readyObservation = nil
+        layer?.sublayers?.filter { $0 !== current }.forEach { $0.removeFromSuperlayer() }
+
+        let previous = current
+        guard let player else {
+            current = nil
+            fadeOut(previous)
+            return
+        }
+
+        let next = AVPlayerLayer(player: player)
+        next.videoGravity = videoGravity
+        next.backgroundColor = NSColor.clear.cgColor
+        next.frame = bounds
+        next.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        next.actions = ["bounds": NSNull(), "position": NSNull(), "frame": NSNull()]
+        next.opacity = animated && previous != nil ? 0 : 1
+        layer?.addSublayer(next)
+        current = next
+
+        guard next.opacity == 0 else {
+            previous?.removeFromSuperlayer()
+            return
+        }
+
+        readyObservation = next.observe(\.isReadyForDisplay, options: [.initial, .new]) { [weak self] layer, _ in
+            guard layer.isReadyForDisplay else { return }
+            DispatchQueue.main.async {
+                self?.crossfade(to: layer, from: previous)
+            }
+        }
+    }
+
+    private func crossfade(to next: AVPlayerLayer, from previous: AVPlayerLayer?) {
+        guard next === current, next.opacity == 0 else { return }
+        readyObservation = nil
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.9)
+        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeInEaseOut))
+        CATransaction.setCompletionBlock { previous?.removeFromSuperlayer() }
+        next.opacity = 1
+        CATransaction.commit()
+    }
+
+    private func fadeOut(_ layer: AVPlayerLayer?) {
+        guard let layer else { return }
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.5)
+        CATransaction.setCompletionBlock { layer.removeFromSuperlayer() }
+        layer.opacity = 0
+        CATransaction.commit()
     }
 }
 

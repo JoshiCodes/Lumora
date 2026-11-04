@@ -24,7 +24,7 @@ final class VideoLibrary: ObservableObject {
     private let fileManager = FileManager.default
     private var isLoading = false
 
-    static var defaultRoot: URL {
+    nonisolated static var defaultRoot: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Lumora", isDirectory: true)
     }

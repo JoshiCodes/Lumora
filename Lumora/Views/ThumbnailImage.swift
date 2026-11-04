@@ -24,12 +24,18 @@ struct ThumbnailImage: View {
                 return
             }
             let radius = blur
-            let loaded = await Task.detached(priority: .utility) { () -> NSImage? in
+            let loaded = await Task.detached(priority: .utility) { () -> LoadedImage? in
                 guard let data = try? Data(contentsOf: url) else { return nil }
-                return radius > 0 ? Self.blurred(data, radius: radius) : NSImage(data: data)
+                let image = radius > 0 ? Self.blurred(data, radius: radius) : NSImage(data: data)
+                return image.map(LoadedImage.init)
             }.value
-            withAnimation(.easeOut(duration: 0.35)) { image = loaded }
+            withAnimation(.easeOut(duration: 0.35)) { image = loaded?.image }
         }
+    }
+
+    /// The image is created off the main thread and never touched there again until it's shown.
+    private struct LoadedImage: @unchecked Sendable {
+        let image: NSImage
     }
 
     private nonisolated static func blurred(_ data: Data, radius: CGFloat) -> NSImage? {

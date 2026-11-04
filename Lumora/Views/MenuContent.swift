@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuContent: View {
     @EnvironmentObject private var library: VideoLibrary
     @EnvironmentObject private var wallpaper: WallpaperController
+    @EnvironmentObject private var updater: Updater
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -37,6 +38,9 @@ struct MenuContent: View {
             NSApp.activate()
         }
         .keyboardShortcut("o")
+
+        Button("Check for Updates…") { updater.checkForUpdates() }
+            .disabled(!updater.canCheckForUpdates)
 
         Divider()
 

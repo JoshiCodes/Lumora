@@ -6,6 +6,11 @@ options:
     macOS: "15.0"
   createIntermediateGroups: true
 
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
+
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -26,6 +31,7 @@ targets:
       - path: Lumora
       - path: Shared
     dependencies:
+      - package: Sparkle
       - target: LumoraSaver
         embed: true
         codeSign: true
@@ -40,6 +46,10 @@ targets:
         LSApplicationCategoryType: public.app-category.utilities
         LSUIElement: true
         NSHumanReadableCopyright: "© 2026 JoshiCodes"
+        SUFeedURL: https://github.com/JoshiCodes/Lumora/releases/latest/download/appcast.xml
+        SUPublicEDKey: qw9ZdzGaHOE8WqWoOctYrTNBZoW48CC1EVvvWNQ0ApQ=
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.joshicodes.Lumora

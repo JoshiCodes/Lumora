@@ -35,6 +35,8 @@ final class ScreenSaverManager: ObservableObject {
                 let ids = Set(clips.map(\.id))
                 if !selection.isSubset(of: ids) {
                     setSelection(selection.intersection(ids))
+                } else {
+                    sync()
                 }
             }
             .store(in: &subscriptions)

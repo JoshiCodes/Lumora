@@ -17,6 +17,7 @@ final class WallpaperController: ObservableObject {
     let player = AVQueuePlayer()
     private var looper: AVPlayerLooper?
     private var loadedClipID: UUID?
+    private var loadedFileName: String?
     private var loadGeneration = 0
     private var windows: [CGDirectDisplayID: DesktopWindow] = [:]
     private var subscriptions = Set<AnyCancellable>()
@@ -34,6 +35,12 @@ final class WallpaperController: ObservableObject {
     func start() {
         library.$activeClipID
             .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.loadActiveClip() }
+            .store(in: &subscriptions)
+
+        // Picks up a re-encoded file after "Optimize".
+        library.$clips
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.loadActiveClip() }
             .store(in: &subscriptions)
@@ -105,9 +112,10 @@ final class WallpaperController: ObservableObject {
             restoreDesktopPictures()
             return
         }
-        guard clip.id != loadedClipID else { return }
+        guard clip.id != loadedClipID || clip.fileName != loadedFileName else { return }
 
         loadedClipID = clip.id
+        loadedFileName = clip.fileName
         loadGeneration += 1
         let generation = loadGeneration
         let url = library.videoURL(for: clip)
@@ -156,6 +164,7 @@ final class WallpaperController: ObservableObject {
         player.pause()
         player.removeAllItems()
         loadedClipID = nil
+        loadedFileName = nil
         windows.values.forEach { $0.orderOut(nil) }
         windows.removeAll()
         isPlaying = false

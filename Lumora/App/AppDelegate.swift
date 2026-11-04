@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let downloads: DownloadManager
     let screenSaver: ScreenSaverManager
     let performance: PerformanceMonitor
+    let updater: Updater
 
     override init() {
         preferences = Preferences()
@@ -20,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         downloads = DownloadManager(library: library)
         screenSaver = ScreenSaverManager(library: library, preferences: preferences)
         performance = PerformanceMonitor(library: library, wallpaper: wallpaper)
+        updater = Updater()
         super.init()
     }
 
@@ -43,5 +45,6 @@ extension View {
             .environmentObject(delegate.downloads)
             .environmentObject(delegate.screenSaver)
             .environmentObject(delegate.performance)
+            .environmentObject(delegate.updater)
     }
 }

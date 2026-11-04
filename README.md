@@ -7,6 +7,8 @@ Live video wallpapers for macOS. Bring your own clips or find new ones from NASA
 - **Discover:** browse and search NASA, the Internet Archive, Pexels and Pixabay, preview a clip and set it as your wallpaper in one click
 - **Screen Saver:** a matching screen saver that plays videos from your library, also on top of the lock screen
 - **Performance:** live CPU, memory and GPU readings, details about the current video, and an impact test
+- **Optimize:** re-encode heavy clips to HEVC at 30 fps with one click
+- **Automatic updates** from GitHub releases
 - Lives in the menu bar, with a Dock icon only while the window is open
 
 Requires macOS 15 or later on Apple Silicon.
@@ -37,7 +39,7 @@ The builds are signed ad hoc but not notarized by Apple yet. On first launch mac
 xattr -dr com.apple.quarantine /Applications/Lumora.app
 ```
 
-You only need to do this once per version.
+You only need to do this once. Later versions arrive through the built-in updater, which takes care of this for you.
 
 ## Video sources
 
@@ -53,6 +55,8 @@ Paste keys into **Settings → Video Sources** or straight into the Discover tab
 ## Performance
 
 The **Performance** tab shows Lumora's CPU and memory, the system's GPU load and details about the current video, such as codec, resolution and whether it's hardware-decoded. It also gives hints when a clip is heavier than it needs to be.
+
+If a clip runs at 60 fps or uses a codec without hardware decoding, Lumora offers **Optimize This Video**. It re-encodes the clip to HEVC at 30 fps without audio, which roughly halves the decoding work. The same action is available from the clip's context menu in the library.
 
 Because macOS does part of the decoding and drawing in its own services, Lumora's process alone doesn't tell the whole story. The **impact test** measures the whole Mac for 10 seconds while playing and 10 seconds while paused and shows the difference. Sampling only runs while the tab is open.
 
@@ -74,6 +78,13 @@ xcodegen generate
 open Lumora.xcodeproj
 ```
 
-## Releases
+## Releases and updates
 
-Every push to `main` is built and tested by GitHub Actions. If `MARKETING_VERSION` in `project.yml` hasn't been released yet, the workflow creates a GitHub release `vX.Y.Z` with the disk image attached. To publish a new version, bump the number and push.
+Every push to `main` is built and tested by GitHub Actions. If `MARKETING_VERSION` in `project.yml` hasn't been released yet, the workflow creates a GitHub release `vX.Y.Z`. To publish a new version, bump the number and push.
+
+Each release contains:
+
+- `Lumora-X.Y.Z.dmg` for new installs
+- `Lumora-X.Y.Z.zip` and `appcast.xml` for [Sparkle](https://sparkle-project.org), which the app uses to update itself
+
+The app reads the feed from `releases/latest/download/appcast.xml`, so updates need the repository to be public. Updates are signed with an EdDSA key. The private key lives in the `SPARKLE_PRIVATE_KEY` repository secret, and the public key is `SUPublicEDKey` in `project.yml`. Without the secret, releases are still published, just without the update feed.

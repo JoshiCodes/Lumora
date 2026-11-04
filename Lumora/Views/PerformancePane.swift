@@ -26,7 +26,7 @@ struct PerformancePane: View {
         .navigationTitle("Performance")
         .onAppear { monitor.beginObserving() }
         .onDisappear { monitor.endObserving() }
-        .task(id: library.activeClipID) { await monitor.refreshVideoDetails() }
+        .task(id: library.activeClip?.fileName) { await monitor.refreshVideoDetails() }
         .alert("Impact Test", isPresented: errorBinding, presenting: monitor.impactError) { _ in
             Button("OK") {}
         } message: { Text($0) }
@@ -127,6 +127,18 @@ struct PerformancePane: View {
                     Label(hint, systemImage: "lightbulb")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                if let clip = library.activeClip, video.frameRate > 31 || !video.hardwareDecoding {
+                    if library.optimizing.contains(clip.id) {
+                        ProgressView("Optimizing…")
+                            .controlSize(.small)
+                    } else {
+                        Button("Optimize This Video") {
+                            Task { await library.optimize(clip) }
+                        }
+                        .help("Re-encodes to HEVC at 30 fps without audio. Takes a minute and replaces the original in your library.")
+                    }
                 }
             } else {
                 Text(library.activeClip == nil ? "No wallpaper selected." : "Reading video…")

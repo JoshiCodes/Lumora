@@ -5,6 +5,7 @@ struct SettingsPane: View {
     @EnvironmentObject private var library: VideoLibrary
     @EnvironmentObject private var keys: APIKeys
     @EnvironmentObject private var discover: DiscoverModel
+    @EnvironmentObject private var updater: Updater
 
     @State private var storage = ""
 
@@ -46,6 +47,14 @@ struct SettingsPane: View {
                         Text("\(provider.title) API key")
                         Link("Get a key", destination: provider.keySignupURL)
                     }
+                }
+            }
+
+            Section("Updates") {
+                Toggle("Check for updates automatically", isOn: $updater.automaticallyChecks)
+                LabeledContent("Version \(Bundle.main.shortVersion) (\(Bundle.main.buildNumber))") {
+                    Button("Check Now") { updater.checkForUpdates() }
+                        .disabled(!updater.canCheckForUpdates)
                 }
             }
 

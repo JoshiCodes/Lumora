@@ -7,6 +7,8 @@ struct ClipCard: View {
     /// Shows a checkbox when set, used for picking screen saver videos.
     var isChecked: Bool? = nil
 
+    var isBusy = false
+
     @State private var thumbnail: NSImage?
     @State private var isHovering = false
 
@@ -27,6 +29,18 @@ struct ClipCard: View {
                 }
                 .overlay(alignment: .bottomTrailing) {
                     DurationBadge(text: clip.durationText)
+                }
+                .overlay {
+                    if isBusy {
+                        ZStack {
+                            Color.black.opacity(0.45)
+                            VStack(spacing: 6) {
+                                ProgressView().controlSize(.small)
+                                Text("Optimizing…").font(.caption)
+                            }
+                            .foregroundStyle(.white)
+                        }
+                    }
                 }
                 .overlay(alignment: .topTrailing) {
                     if let isChecked {

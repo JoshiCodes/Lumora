@@ -19,6 +19,7 @@ final class VideoLibrary: ObservableObject {
     }
     @Published private(set) var importsInFlight = 0
     @Published var lastError: String?
+    @Published private(set) var optimizing: Set<UUID> = []
 
     let root: URL
     private let fileManager = FileManager.default
@@ -119,6 +120,62 @@ final class VideoLibrary: ObservableObject {
             try? fileManager.removeItem(at: url)
         }
         save()
+    }
+
+    // MARK: - Optimizing
+
+    /// Re-encodes a clip to HEVC at no more than 30 fps without audio.
+    /// High frame rates are the most common reason a wallpaper is expensive to play.
+    func optimize(_ clip: Clip) async {
+        guard !optimizing.contains(clip.id) else { return }
+        optimizing.insert(clip.id)
+        defer { optimizing.remove(clip.id) }
+
+        let source = videoURL(for: clip)
+        let fileName = "\(clip.id.uuidString)-\(Int(Date().timeIntervalSince1970)).mov"
+        let destination = videosURL.appendingPathComponent(fileName)
+
+        do {
+            try await Self.encodeOptimized(from: source, to: destination)
+            guard let index = clips.firstIndex(where: { $0.id == clip.id }) else {
+                try? fileManager.removeItem(at: destination)
+                return
+            }
+            clips[index] = Clip(id: clip.id, name: clips[index].name, fileName: fileName,
+                                addedAt: clip.addedAt, duration: clip.duration,
+                                sourceID: clip.sourceID, credit: clip.credit)
+            save()
+            try? fileManager.removeItem(at: source)
+        } catch {
+            try? fileManager.removeItem(at: destination)
+            lastError = "Couldn't optimize “\(clip.name)”: \(error.localizedDescription)"
+        }
+    }
+
+    private nonisolated static func encodeOptimized(from source: URL, to destination: URL) async throws {
+        let asset = AVURLAsset(url: source)
+        guard let video = try await asset.loadTracks(withMediaType: .video).first else {
+            throw ImportError.unsupported(source.lastPathComponent)
+        }
+        let (range, transform, frameRate) = try await video.load(.timeRange, .preferredTransform, .nominalFrameRate)
+
+        let composition = AVMutableComposition()
+        guard let track = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+            throw ImportError.unsupported(source.lastPathComponent)
+        }
+        try track.insertTimeRange(range, of: video, at: .zero)
+        track.preferredTransform = transform
+
+        let videoComposition = try await AVMutableVideoComposition.videoComposition(withPropertiesOf: composition)
+        if frameRate > 31 {
+            videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+        }
+
+        guard let export = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHEVCHighestQuality) else {
+            throw ImportError.unsupported(source.lastPathComponent)
+        }
+        export.videoComposition = videoComposition
+        try await export.export(to: destination, as: .mov)
     }
 
     // MARK: - Import

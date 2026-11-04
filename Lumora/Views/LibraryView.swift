@@ -84,7 +84,8 @@ struct LibraryView: View {
                 ForEach(visibleClips) { clip in
                     ClipCard(clip: clip,
                              thumbnailURL: library.thumbnailURL(for: clip),
-                             isActive: clip.id == library.activeClipID)
+                             isActive: clip.id == library.activeClipID,
+                             isBusy: library.optimizing.contains(clip.id))
                         .onTapGesture { library.activeClipID = clip.id }
                         .contextMenu { menu(for: clip) }
                 }
@@ -104,6 +105,10 @@ struct LibraryView: View {
             get: { screenSaver.contains(clip) },
             set: { _ in screenSaver.toggle(clip) }
         ))
+        Button("Optimize for Playback") {
+            Task { await library.optimize(clip) }
+        }
+        .disabled(library.optimizing.contains(clip.id))
         Button("Show in Finder") {
             NSWorkspace.shared.activateFileViewerSelecting([library.videoURL(for: clip)])
         }

@@ -50,6 +50,9 @@ jobs:
       - name: Create disk image
         run: scripts/make-dmg.sh build/Build/Products/Release/Lumora.app ${{ steps.version.outputs.version }}
 
+      - name: Create update archive
+        run: ditto -c -k --keepParent build/Build/Products/Release/Lumora.app Lumora-${{ steps.version.outputs.version }}.zip
+
       - uses: actions/upload-artifact@v4
         with:
           name: Lumora-${{ steps.version.outputs.version }}
@@ -60,12 +63,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           if gh release view "v$VERSION" > /dev/null 2>&1; then
             echo "v$VERSION is already released, bump MARKETING_VERSION in project.yml to publish a new one"
             exit 0
           fi
-          gh release create "v$VERSION" "Lumora-$VERSION.dmg" \
+          assets=("Lumora-$VERSION.dmg" "Lumora-$VERSION.zip")
+          scripts/make-appcast.sh "Lumora-$VERSION.zip" "$VERSION" "${{ github.run_number }}"
+          if [ -f appcast.xml ]; then assets+=(appcast.xml); fi
+          gh release create "v$VERSION" "${assets[@]}" \
             --title "Lumora $VERSION" \
             --notes-file .github/release-notes.md \
             --generate-notes

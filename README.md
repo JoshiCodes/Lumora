@@ -22,12 +22,26 @@ open Lumora.xcodeproj
 
 Every push to `main` is built by GitHub Actions. The app is attached to the workflow run as `Lumora.zip`.
 
-## Running a CI build
+## Installing a CI build
 
-Builds are ad-hoc signed and not notarized, so Gatekeeper will block the first launch. After unzipping:
+1. Open the latest successful run under **Actions** and download the `Lumora` artifact.
+2. Unzip it, then unzip the `Lumora.zip` inside. GitHub wraps the file once more.
+3. Move `Lumora.app` to `/Applications`.
+
+CI builds are ad-hoc signed but not notarized by Apple. On first launch macOS shows *“Apple could not verify ‘Lumora’ is free of malware…”*. Pick one of these to allow it:
+
+**System Settings**
+
+1. Try to open Lumora once and close the warning with **Done**.
+2. Go to **System Settings → Privacy & Security** and scroll down to the Security section.
+3. Click **Open Anyway** next to the message about Lumora and confirm with your password.
+
+**Terminal**
 
 ```sh
-xattr -dr com.apple.quarantine Lumora.app
+xattr -dr com.apple.quarantine /Applications/Lumora.app
 ```
 
-Then move it to `/Applications` and open it.
+This removes the quarantine flag that macOS adds to downloaded files. Run it on the app at its final location. If you move or re-download the app, do it again.
+
+Either way you only need to do it once per build. Signed and notarized releases will make this step unnecessary.

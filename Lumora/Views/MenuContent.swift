@@ -8,6 +8,9 @@ struct MenuContent: View {
     var body: some View {
         if let clip = library.activeClip {
             Text(clip.name)
+            if let reason = wallpaper.pauseReason, !wallpaper.isUserPaused {
+                Text(reason)
+            }
             Button(wallpaper.isUserPaused ? "Resume" : "Pause") {
                 wallpaper.togglePause()
             }
@@ -29,19 +32,15 @@ struct MenuContent: View {
             }
         }
 
-        Button("Library…") { show(WindowID.library) }
-            .keyboardShortcut("l")
-        Button("Settings…") { show(WindowID.settings) }
-            .keyboardShortcut(",")
+        Button("Open Lumora…") {
+            openWindow(id: WindowID.main)
+            NSApp.activate()
+        }
+        .keyboardShortcut("o")
 
         Divider()
 
         Button("Quit Lumora") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
-    }
-
-    private func show(_ id: String) {
-        openWindow(id: id)
-        NSApp.activate()
     }
 }

@@ -45,6 +45,14 @@ final class VideoLibrary: ObservableObject {
     var isImporting: Bool { importsInFlight > 0 }
     var activeClip: Clip? { clips.first { $0.id == activeClipID } }
 
+    func clip(withID id: UUID) -> Clip? {
+        clips.first { $0.id == id }
+    }
+
+    func clip(forSourceID sourceID: String) -> Clip? {
+        clips.first { $0.sourceID == sourceID }
+    }
+
     func videoURL(for clip: Clip) -> URL {
         videosURL.appendingPathComponent(clip.fileName)
     }
@@ -57,13 +65,21 @@ final class VideoLibrary: ObservableObject {
         stillsURL.appendingPathComponent("\(clip.id.uuidString).jpg")
     }
 
+    /// Bytes used by the imported videos.
+    func storageSize() -> Int64 {
+        let files = (try? fileManager.contentsOfDirectory(at: videosURL, includingPropertiesForKeys: [.fileSizeKey])) ?? []
+        return files.reduce(0) { total, url in
+            total + Int64((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+        }
+    }
+
     // MARK: - Editing
 
     func importFiles(_ urls: [URL]) async {
         for url in urls {
             importsInFlight += 1
             do {
-                let clip = try await importFile(url)
+                let clip = try await importFile(url, move: false)
                 clips.append(clip)
                 save()
             } catch {
@@ -71,6 +87,20 @@ final class VideoLibrary: ObservableObject {
             }
             importsInFlight -= 1
         }
+    }
+
+    @discardableResult
+    func importDownload(_ file: URL, name: String, sourceID: String, credit: String?) async throws -> Clip {
+        importsInFlight += 1
+        defer { importsInFlight -= 1 }
+
+        var clip = try await importFile(file, move: true)
+        clip.name = name
+        clip.sourceID = sourceID
+        clip.credit = credit
+        clips.append(clip)
+        save()
+        return clip
     }
 
     func rename(_ clip: Clip, to name: String) {
@@ -93,7 +123,7 @@ final class VideoLibrary: ObservableObject {
 
     // MARK: - Import
 
-    private func importFile(_ source: URL) async throws -> Clip {
+    private func importFile(_ source: URL, move: Bool) async throws -> Clip {
         let scoped = source.startAccessingSecurityScopedResource()
         defer { if scoped { source.stopAccessingSecurityScopedResource() } }
 
@@ -108,7 +138,11 @@ final class VideoLibrary: ObservableObject {
         let ext = source.pathExtension.isEmpty ? "mov" : source.pathExtension.lowercased()
         let destination = videosURL.appendingPathComponent("\(id.uuidString).\(ext)")
         try await Task.detached(priority: .userInitiated) {
-            try FileManager.default.copyItem(at: source, to: destination)
+            if move {
+                try FileManager.default.moveItem(at: source, to: destination)
+            } else {
+                try FileManager.default.copyItem(at: source, to: destination)
+            }
         }.value
 
         let clip = Clip(

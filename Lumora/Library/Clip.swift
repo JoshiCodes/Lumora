@@ -6,6 +6,8 @@ struct Clip: Identifiable, Codable, Hashable {
     let fileName: String
     let addedAt: Date
     var duration: TimeInterval
+    var sourceID: String?
+    var credit: String?
 
     var durationText: String { Clip.format(duration) }
 

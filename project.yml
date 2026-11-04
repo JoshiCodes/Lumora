@@ -9,7 +9,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "0.2.0"
     CURRENT_PROJECT_VERSION: "1"
     ARCHS: arm64
     CODE_SIGN_STYLE: Manual
@@ -24,6 +24,13 @@ targets:
     platform: macOS
     sources:
       - path: Lumora
+      - path: Shared
+    dependencies:
+      - target: LumoraSaver
+        embed: true
+        codeSign: true
+        copy:
+          destination: resources
     info:
       path: Lumora/Info.plist
       properties:
@@ -36,6 +43,32 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.joshicodes.Lumora
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  LumoraSaver:
+    type: bundle
+    platform: macOS
+    sources:
+      - path: LumoraSaver
+      - path: Shared
+    dependencies:
+      - sdk: ScreenSaver.framework
+    info:
+      path: LumoraSaver/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSPrincipalClass: LumoraSaverView
+        NSHumanReadableCopyright: "© 2026 JoshiCodes"
+    settings:
+      base:
+        PRODUCT_NAME: Lumora
+        PRODUCT_MODULE_NAME: LumoraSaver
+        PRODUCT_BUNDLE_IDENTIFIER: com.joshicodes.Lumora.Saver
+        WRAPPER_EXTENSION: saver
+        INSTALL_PATH: $(HOME)/Library/Screen Savers
+        SKIP_INSTALL: YES
 
   LumoraTests:
     type: bundle.unit-test

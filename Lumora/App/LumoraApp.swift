@@ -5,33 +5,27 @@ struct LumoraApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
-        MenuBarExtra("Lumora", systemImage: "sparkles") {
+        MenuBarExtra {
             MenuContent()
-                .environmentObject(delegate.library)
-                .environmentObject(delegate.wallpaper)
+                .lumoraEnvironment(delegate)
+        } label: {
+            Image(systemName: "sparkles")
         }
 
-        Window("Lumora", id: WindowID.library) {
-            LibraryView()
-                .environmentObject(delegate.library)
-                .environmentObject(delegate.wallpaper)
-                .frame(minWidth: 640, minHeight: 420)
+        Window("Lumora", id: WindowID.main) {
+            MainView()
+                .lumoraEnvironment(delegate)
         }
-        .defaultSize(width: 820, height: 560)
+        .defaultSize(width: 1080, height: 700)
         .windowResizability(.contentMinSize)
+        .windowToolbarStyle(.unified)
         .defaultLaunchBehavior(delegate.library.clips.isEmpty ? .presented : .suppressed)
-
-        Window("Settings", id: WindowID.settings) {
-            SettingsView()
-                .environmentObject(delegate.preferences)
-                .environmentObject(delegate.library)
+        .commands {
+            CommandGroup(replacing: .newItem) {}
         }
-        .windowResizability(.contentSize)
-        .defaultLaunchBehavior(.suppressed)
     }
 }
 
 enum WindowID {
-    static let library = "library"
-    static let settings = "settings"
+    static let main = "main"
 }

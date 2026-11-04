@@ -3,7 +3,9 @@ import SwiftUI
 struct ClipCard: View {
     let clip: Clip
     let thumbnailURL: URL
-    let isActive: Bool
+    var isActive = false
+    /// Shows a checkbox when set, used for picking screen saver videos.
+    var isChecked: Bool? = nil
 
     @State private var thumbnail: NSImage?
     @State private var isHovering = false
@@ -20,23 +22,27 @@ struct ClipCard: View {
                         Image(nsImage: thumbnail)
                             .resizable()
                             .scaledToFill()
+                            .transition(.opacity)
                     }
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    Text(clip.durationText)
-                        .font(.caption2.monospacedDigit().weight(.medium))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.black.opacity(0.55), in: Capsule())
-                        .padding(7)
+                    DurationBadge(text: clip.durationText)
+                }
+                .overlay(alignment: .topTrailing) {
+                    if let isChecked {
+                        Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 20))
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, isChecked ? Color.accentColor : .black.opacity(0.3))
+                            .padding(8)
+                    }
                 }
                 .clipShape(shape)
                 .overlay {
                     shape.strokeBorder(isActive ? Color.accentColor : Color.primary.opacity(0.08),
                                        lineWidth: isActive ? 3 : 1)
                 }
-                .shadow(color: .black.opacity(isHovering ? 0.25 : 0.1), radius: isHovering ? 10 : 4, y: 3)
+                .shadow(color: .black.opacity(isHovering ? 0.22 : 0.08), radius: isHovering ? 10 : 4, y: 3)
                 .scaleEffect(isHovering ? 1.02 : 1)
 
             HStack(spacing: 6) {
@@ -56,7 +62,25 @@ struct ClipCard: View {
         .animation(.easeOut(duration: 0.15), value: isHovering)
         .onHover { isHovering = $0 }
         .task(id: thumbnailURL) {
-            thumbnail = NSImage(contentsOf: thumbnailURL)
+            let url = thumbnailURL
+            let data = await Task.detached(priority: .utility) { try? Data(contentsOf: url) }.value
+            withAnimation(.easeOut(duration: 0.2)) {
+                thumbnail = data.flatMap(NSImage.init(data:))
+            }
         }
+    }
+}
+
+struct DurationBadge: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.monospacedDigit().weight(.medium))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.black.opacity(0.55), in: Capsule())
+            .padding(7)
     }
 }

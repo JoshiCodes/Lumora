@@ -3,12 +3,19 @@ import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @EnvironmentObject private var library: VideoLibrary
-    @EnvironmentObject private var wallpaper: WallpaperController
+    @EnvironmentObject private var screenSaver: ScreenSaverManager
 
     @State private var showingImporter = false
     @State private var isDropTargeted = false
     @State private var clipToRename: Clip?
     @State private var draftName = ""
+    @State private var filter = ""
+
+    private var visibleClips: [Clip] {
+        let query = filter.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return library.clips }
+        return library.clips.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
 
     private let columns = [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 18)]
 
@@ -34,6 +41,8 @@ struct LibraryView: View {
             Task { await library.importFiles(movies) }
             return true
         } isTargeted: { isDropTargeted = $0 }
+        .navigationTitle("Library")
+        .searchable(text: $filter, placement: .toolbar, prompt: "Filter")
         .toolbar { toolbar }
         .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.movie], allowsMultipleSelection: true) { result in
             guard case .success(let urls) = result else { return }
@@ -61,19 +70,6 @@ struct LibraryView: View {
                     .controlSize(.small)
                     .help("Importing…")
             }
-            if library.activeClip != nil {
-                Button {
-                    wallpaper.togglePause()
-                } label: {
-                    Label(wallpaper.isUserPaused ? "Resume" : "Pause",
-                          systemImage: wallpaper.isUserPaused ? "play.fill" : "pause.fill")
-                }
-                Button {
-                    wallpaper.stop()
-                } label: {
-                    Label("Stop", systemImage: "stop.fill")
-                }
-            }
             Button {
                 showingImporter = true
             } label: {
@@ -85,7 +81,7 @@ struct LibraryView: View {
     private var grid: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 22) {
-                ForEach(library.clips) { clip in
+                ForEach(visibleClips) { clip in
                     ClipCard(clip: clip,
                              thumbnailURL: library.thumbnailURL(for: clip),
                              isActive: clip.id == library.activeClipID)
@@ -104,6 +100,10 @@ struct LibraryView: View {
             draftName = clip.name
             clipToRename = clip
         }
+        Toggle("Use in Screen Saver", isOn: Binding(
+            get: { screenSaver.contains(clip) },
+            set: { _ in screenSaver.toggle(clip) }
+        ))
         Button("Show in Finder") {
             NSWorkspace.shared.activateFileViewerSelecting([library.videoURL(for: clip)])
         }

@@ -6,14 +6,17 @@ import Combine
 final class WallpaperController: ObservableObject {
     @Published private(set) var isUserPaused = false
     @Published private(set) var isPlaying = false
+    @Published private(set) var pauseReason: String?
 
     private let library: VideoLibrary
     private let preferences: Preferences
     private let conditions = PlaybackConditions()
 
-    private let player = AVQueuePlayer()
+    /// Shared by every desktop window and the in-app preview, so the video is only decoded once.
+    let player = AVQueuePlayer()
     private var looper: AVPlayerLooper?
     private var loadedClipID: UUID?
+    private var loadGeneration = 0
     private var windows: [CGDirectDisplayID: DesktopWindow] = [:]
     private var subscriptions = Set<AnyCancellable>()
 
@@ -24,6 +27,7 @@ final class WallpaperController: ObservableObject {
         self.preferences = preferences
         player.isMuted = true
         player.preventsDisplaySleepDuringVideoPlayback = false
+        player.allowsExternalPlayback = false
     }
 
     func start() {
@@ -56,6 +60,7 @@ final class WallpaperController: ObservableObject {
             conditions.$isAsleep,
             conditions.$isLocked,
             conditions.$isSessionInactive,
+            conditions.$isScreenSaverRunning,
             preferences.$pauseOnBattery,
             preferences.$pauseInLowPowerMode,
             preferences.$pauseWhenCovered
@@ -93,18 +98,50 @@ final class WallpaperController: ObservableObject {
         }
         guard clip.id != loadedClipID else { return }
 
-        looper?.disableLooping()
-        player.removeAllItems()
-        looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: library.videoURL(for: clip)))
         loadedClipID = clip.id
-        isUserPaused = false
+        loadGeneration += 1
+        let generation = loadGeneration
+        let url = library.videoURL(for: clip)
 
-        syncWindows()
-        if preferences.matchDesktopPicture { applyDesktopPicture() }
-        updatePlayback()
+        Task {
+            let item = await Self.silentItem(for: url)
+            guard generation == loadGeneration else { return }
+
+            looper?.disableLooping()
+            player.removeAllItems()
+            looper = AVPlayerLooper(player: player, templateItem: item)
+            isUserPaused = false
+
+            syncWindows()
+            if preferences.matchDesktopPicture { applyDesktopPicture() }
+            updatePlayback()
+        }
+    }
+
+    /// A muted player still decodes audio. Dropping the track saves that work entirely.
+    private nonisolated static func silentItem(for url: URL) async -> AVPlayerItem {
+        let asset = AVURLAsset(url: url)
+        do {
+            let audio = try await asset.loadTracks(withMediaType: .audio)
+            guard !audio.isEmpty, let video = try await asset.loadTracks(withMediaType: .video).first else {
+                return AVPlayerItem(asset: asset)
+            }
+            let (range, transform) = try await video.load(.timeRange, .preferredTransform)
+
+            let composition = AVMutableComposition()
+            guard let track = composition.addMutableTrack(withMediaType: .video,
+                                                          preferredTrackID: kCMPersistentTrackID_Invalid)
+            else { return AVPlayerItem(asset: asset) }
+            try track.insertTimeRange(range, of: video, at: .zero)
+            track.preferredTransform = transform
+            return AVPlayerItem(asset: composition)
+        } catch {
+            return AVPlayerItem(asset: asset)
+        }
     }
 
     private func tearDown() {
+        loadGeneration += 1
         looper?.disableLooping()
         looper = nil
         player.pause()
@@ -120,27 +157,38 @@ final class WallpaperController: ObservableObject {
     }
 
     private func updatePlayback() {
-        let shouldPlay = loadedClipID != nil
-            && !isUserPaused
-            && !conditions.isAsleep
-            && !conditions.isLocked
-            && !conditions.isSessionInactive
-            && !(preferences.pauseOnBattery && conditions.isOnBattery)
-            && !(preferences.pauseInLowPowerMode && conditions.isLowPowerMode)
-            && !(preferences.pauseWhenCovered && !isDesktopVisible)
+        let reason: String? = if loadedClipID == nil || looper == nil {
+            nil
+        } else if isUserPaused {
+            "Paused"
+        } else if conditions.isAsleep || conditions.isLocked || conditions.isSessionInactive {
+            "Paused while the screen is off"
+        } else if conditions.isScreenSaverRunning {
+            "Paused while the screen saver runs"
+        } else if preferences.pauseOnBattery && conditions.isOnBattery {
+            "Paused on battery power"
+        } else if preferences.pauseInLowPowerMode && conditions.isLowPowerMode {
+            "Paused in Low Power Mode"
+        } else if preferences.pauseWhenCovered && !isDesktopVisible {
+            "Paused while the desktop is hidden"
+        } else {
+            nil
+        }
 
+        let shouldPlay = looper != nil && reason == nil
         if shouldPlay {
             player.play()
         } else {
             player.pause()
         }
         isPlaying = shouldPlay
+        pauseReason = reason
     }
 
     // MARK: - Windows
 
     private func syncWindows() {
-        guard loadedClipID != nil else { return }
+        guard looper != nil else { return }
 
         let screens = NSScreen.screens
         let connected = Set(screens.map(\.displayID))

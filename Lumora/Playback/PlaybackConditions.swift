@@ -9,6 +9,7 @@ final class PlaybackConditions: ObservableObject {
     @Published private(set) var isAsleep = false
     @Published private(set) var isLocked = false
     @Published private(set) var isSessionInactive = false
+    @Published private(set) var isScreenSaverRunning = false
 
     private var tokens: [NSObjectProtocol] = []
 
@@ -26,6 +27,8 @@ final class PlaybackConditions: ObservableObject {
         let distributed = DistributedNotificationCenter.default()
         observe(distributed, Notification.Name("com.apple.screenIsLocked")) { $0.isLocked = true }
         observe(distributed, Notification.Name("com.apple.screenIsUnlocked")) { $0.isLocked = false }
+        observe(distributed, Notification.Name("com.apple.screensaver.didstart")) { $0.isScreenSaverRunning = true }
+        observe(distributed, Notification.Name("com.apple.screensaver.didstop")) { $0.isScreenSaverRunning = false }
 
         observe(.default, .NSProcessInfoPowerStateDidChange) { $0.refreshPowerState() }
         watchPowerSource()

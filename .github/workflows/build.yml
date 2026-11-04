@@ -6,17 +6,27 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      - name: Install tools
+        run: brew install xcodegen create-dmg
 
       - name: Generate project
         run: xcodegen generate
+
+      - name: Read version
+        id: version
+        run: |
+          version=$(sed -n 's/^ *MARKETING_VERSION: "\(.*\)"/\1/p' project.yml)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building Lumora $version"
 
       - name: Test
         run: |
@@ -34,12 +44,28 @@ jobs:
             -scheme Lumora \
             -configuration Release \
             -derivedDataPath build \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             -quiet
 
-      - name: Package
-        run: ditto -c -k --keepParent build/Build/Products/Release/Lumora.app Lumora.zip
+      - name: Create disk image
+        run: scripts/make-dmg.sh build/Build/Products/Release/Lumora.app ${{ steps.version.outputs.version }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Lumora
-          path: Lumora.zip
+          name: Lumora-${{ steps.version.outputs.version }}
+          path: Lumora-*.dmg
+
+      - name: Publish release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "v$VERSION is already released, bump MARKETING_VERSION in project.yml to publish a new one"
+            exit 0
+          fi
+          gh release create "v$VERSION" "Lumora-$VERSION.dmg" \
+            --title "Lumora $VERSION" \
+            --notes-file .github/release-notes.md \
+            --generate-notes

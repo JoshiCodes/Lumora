@@ -1,0 +1,45 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project Lumora.xcodeproj \
+            -scheme Lumora \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath build \
+            -quiet
+
+      - name: Build release
+        run: |
+          xcodebuild build \
+            -project Lumora.xcodeproj \
+            -scheme Lumora \
+            -configuration Release \
+            -derivedDataPath build \
+            -quiet
+
+      - name: Package
+        run: ditto -c -k --keepParent build/Build/Products/Release/Lumora.app Lumora.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Lumora
+          path: Lumora.zip

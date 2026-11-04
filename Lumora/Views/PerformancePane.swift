@@ -129,7 +129,7 @@ struct PerformancePane: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if let clip = library.activeClip, video.frameRate > 31 || !video.hardwareDecoding {
+                if let clip = library.activeClip, needsOptimizing(video) {
                     if library.optimizing.contains(clip.id) {
                         ProgressView("Optimizing…")
                             .controlSize(.small)
@@ -137,7 +137,7 @@ struct PerformancePane: View {
                         Button("Optimize This Video") {
                             Task { await library.optimize(clip) }
                         }
-                        .help("Re-encodes to HEVC at 30 fps without audio. Takes a minute and replaces the original in your library.")
+                        .help("Re-encodes to HEVC at up to 30 fps and your display's resolution, without audio. Replaces the original in your library.")
                     }
                 }
             } else {
@@ -154,6 +154,11 @@ struct PerformancePane: View {
             Text(title).foregroundStyle(.secondary)
             Text(value).monospacedDigit()
         }
+    }
+
+    private func needsOptimizing(_ video: VideoDetails) -> Bool {
+        video.frameRate > 31 || !video.hardwareDecoding
+            || video.resolution.width > CGFloat(NSScreen.widestPixelWidth) / 0.9
     }
 
     private func hints(for video: VideoDetails) -> [String] {

@@ -7,7 +7,7 @@ Live video wallpapers for macOS. Bring your own clips or find new ones from NASA
 - **Discover:** browse and search NASA, the Internet Archive, Pexels and Pixabay, preview a clip and set it as your wallpaper in one click
 - **Screen Saver:** a matching screen saver that plays videos from your library, also on top of the lock screen
 - **Performance:** live CPU, memory and GPU readings, details about the current video, and an impact test
-- **Optimize:** re-encode heavy clips to HEVC at 30 fps with one click
+- **Optimize:** new videos are converted to HEVC at up to 30 fps and your display's resolution, existing ones with one click
 - **Automatic updates** from GitHub releases
 - Lives in the menu bar, with a Dock icon only while the window is open
 
@@ -18,7 +18,9 @@ Requires macOS 15 or later on Apple Silicon.
 - One decoder for all displays. Every screen and the in-app preview share the same player.
 - Audio tracks are dropped before playback, so nothing is decoded that you can't hear.
 - Downloads pick the smallest file that still covers your display instead of always grabbing 4K.
-- Playback stops while the desktop is hidden behind full-screen apps, while the screen is locked, asleep or showing the screen saver, and optionally on battery or in Low Power Mode.
+- Videos are optimized when you add them: HEVC, at most 30 fps and no larger than your widest display.
+- Playback stops while the desktop is hidden behind full-screen apps, while the screen is locked, asleep or showing the screen saver, when you've been away for a few minutes and when the Mac runs hot. Optionally also on battery or in Low Power Mode.
+- Video views never redraw on the CPU. Everything on screen comes straight from the video layer.
 - The Mac can still go to sleep while a wallpaper is playing.
 
 ## Install
@@ -56,7 +58,7 @@ Paste keys into **Settings → Video Sources** or straight into the Discover tab
 
 The **Performance** tab shows Lumora's CPU and memory, the system's GPU load and details about the current video, such as codec, resolution and whether it's hardware-decoded. It also gives hints when a clip is heavier than it needs to be.
 
-If a clip runs at 60 fps or uses a codec without hardware decoding, Lumora offers **Optimize This Video**. It re-encodes the clip to HEVC at 30 fps without audio, which roughly halves the decoding work. The same action is available from the clip's context menu in the library.
+If a clip runs above 30 fps, is larger than your display or uses a codec without hardware decoding, Lumora offers **Optimize This Video**. It re-encodes the clip to HEVC at up to 30 fps and your display's resolution, without audio. A 4K clip at 60 fps on a MacBook display ends up with less than half the decoding work. The same action is in the clip's context menu, and **Settings → Optimize Library** handles all clips at once.
 
 Because macOS does part of the decoding and drawing in its own services, Lumora's process alone doesn't tell the whole story. The **impact test** measures the whole Mac for 10 seconds while playing and 10 seconds while paused and shows the difference. Sampling only runs while the tab is open.
 

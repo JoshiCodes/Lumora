@@ -31,6 +31,10 @@ final class Preferences: ObservableObject {
         static let pauseInLowPowerMode = "pauseInLowPowerMode"
         static let pauseWhenCovered = "pauseWhenCovered"
         static let matchDesktopPicture = "matchDesktopPicture"
+        static let pauseWhenIdle = "pauseWhenIdle"
+        static let idleMinutes = "idleMinutes"
+        static let pauseWhenHot = "pauseWhenHot"
+        static let optimizeNewClips = "optimizeNewClips"
     }
 
     private let defaults: UserDefaults
@@ -51,6 +55,19 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(matchDesktopPicture, forKey: Key.matchDesktopPicture) }
     }
 
+    @Published var pauseWhenIdle: Bool {
+        didSet { defaults.set(pauseWhenIdle, forKey: Key.pauseWhenIdle) }
+    }
+    @Published var idleMinutes: Int {
+        didSet { defaults.set(idleMinutes, forKey: Key.idleMinutes) }
+    }
+    @Published var pauseWhenHot: Bool {
+        didSet { defaults.set(pauseWhenHot, forKey: Key.pauseWhenHot) }
+    }
+    @Published var optimizeNewClips: Bool {
+        didSet { defaults.set(optimizeNewClips, forKey: Key.optimizeNewClips) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         defaults.register(defaults: [
@@ -58,12 +75,20 @@ final class Preferences: ObservableObject {
             Key.pauseInLowPowerMode: true,
             Key.pauseWhenCovered: true,
             Key.matchDesktopPicture: true,
+            Key.pauseWhenIdle: true,
+            Key.idleMinutes: 5,
+            Key.pauseWhenHot: true,
+            Key.optimizeNewClips: true,
         ])
         scaling = Scaling(rawValue: defaults.string(forKey: Key.scaling) ?? "") ?? .fill
         pauseOnBattery = defaults.bool(forKey: Key.pauseOnBattery)
         pauseInLowPowerMode = defaults.bool(forKey: Key.pauseInLowPowerMode)
         pauseWhenCovered = defaults.bool(forKey: Key.pauseWhenCovered)
         matchDesktopPicture = defaults.bool(forKey: Key.matchDesktopPicture)
+        pauseWhenIdle = defaults.bool(forKey: Key.pauseWhenIdle)
+        idleMinutes = max(1, defaults.integer(forKey: Key.idleMinutes))
+        pauseWhenHot = defaults.bool(forKey: Key.pauseWhenHot)
+        optimizeNewClips = defaults.bool(forKey: Key.optimizeNewClips)
     }
 
     var launchAtLogin: Bool {

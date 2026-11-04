@@ -8,6 +8,7 @@ struct SettingsPane: View {
     @EnvironmentObject private var updater: Updater
 
     @State private var storage = ""
+    @State private var optimizingAll = false
 
     var body: some View {
         Form {
@@ -28,10 +29,47 @@ struct SettingsPane: View {
                     Text("Pause when the desktop is hidden")
                     Text("For example behind full-screen apps.")
                 }
+                Toggle("Pause when you're away", isOn: $preferences.pauseWhenIdle)
+                if preferences.pauseWhenIdle {
+                    Picker("Away after", selection: $preferences.idleMinutes) {
+                        ForEach([1, 2, 5, 10, 15, 30], id: \.self) { minutes in
+                            Text(minutes == 1 ? "1 minute" : "\(minutes) minutes").tag(minutes)
+                        }
+                    }
+                }
+                Toggle(isOn: $preferences.pauseWhenHot) {
+                    Text("Pause when the Mac runs hot")
+                    Text("Gives the system room to cool down under heavy load.")
+                }
             } header: {
                 Text("Energy")
             } footer: {
                 Text("Lumora always pauses while the screen is locked, asleep or showing the screen saver.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle(isOn: $preferences.optimizeNewClips) {
+                    Text("Optimize new videos")
+                    Text("Converts videos you add to HEVC, at most 30 fps and no larger than your display. Takes a moment after adding, then plays with far less effort.")
+                }
+                LabeledContent("Existing videos") {
+                    if optimizingAll || !library.optimizing.isEmpty {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button("Optimize Library") {
+                            optimizingAll = true
+                            Task {
+                                await library.optimizeAll()
+                                optimizingAll = false
+                            }
+                        }
+                    }
+                }
+            } header: {
+                Text("Optimization")
+            } footer: {
+                Text("Videos that are already efficient are left untouched.")
                     .foregroundStyle(.secondary)
             }
 

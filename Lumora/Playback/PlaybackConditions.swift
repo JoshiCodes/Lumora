@@ -10,8 +10,16 @@ final class PlaybackConditions: ObservableObject {
     @Published private(set) var isLocked = false
     @Published private(set) var isSessionInactive = false
     @Published private(set) var isScreenSaverRunning = false
+    @Published private(set) var isUserIdle = false
+    @Published private(set) var isOverheating = false
+
+    /// Seconds without keyboard or mouse input before the user counts as away. Zero turns it off.
+    var idleThreshold: TimeInterval = 0 {
+        didSet { checkIdle() }
+    }
 
     private var tokens: [NSObjectProtocol] = []
+    private var idleTimer: Timer?
 
     init() {
         refreshPowerState()
@@ -31,7 +39,36 @@ final class PlaybackConditions: ObservableObject {
         observe(distributed, Notification.Name("com.apple.screensaver.didstop")) { $0.isScreenSaverRunning = false }
 
         observe(.default, .NSProcessInfoPowerStateDidChange) { $0.refreshPowerState() }
+        observe(.default, ProcessInfo.thermalStateDidChangeNotification) { $0.refreshThermalState() }
         watchPowerSource()
+        refreshThermalState()
+    }
+
+    private func refreshThermalState() {
+        let state = ProcessInfo.processInfo.thermalState
+        isOverheating = state == .serious || state == .critical
+    }
+
+    /// Polls the time since the last input event. While the user is away it checks every second,
+    /// so playback resumes right when they're back. Otherwise every ten seconds is plenty.
+    private func checkIdle() {
+        idleTimer?.invalidate()
+        idleTimer = nil
+        guard idleThreshold > 0 else {
+            isUserIdle = false
+            return
+        }
+
+        let anyInput = CGEventType(rawValue: ~0)!
+        let seconds = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput)
+        let idle = seconds >= idleThreshold
+        if idle != isUserIdle { isUserIdle = idle }
+
+        let delay = idle ? 1 : max(1, min(10, idleThreshold - seconds))
+        idleTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkIdle() }
+        }
+        idleTimer?.tolerance = idle ? 0.2 : 2
     }
 
     private func observe(_ center: NotificationCenter, _ name: Notification.Name,

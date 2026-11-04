@@ -107,9 +107,5 @@ final class DownloadManager: ObservableObject {
         }
     }
 
-    /// Widest display in physical pixels, capped at 4K.
-    static var targetPixelWidth: Int {
-        let widest = NSScreen.screens.map { $0.frame.width * $0.backingScaleFactor }.max() ?? 2560
-        return min(Int(widest), 3840)
-    }
+    static var targetPixelWidth: Int { NSScreen.widestPixelWidth }
 }

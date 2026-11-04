@@ -1,4 +1,5 @@
 import AVFoundation
+import VideoToolbox
 import AppKit
 
 enum ImportError: LocalizedError {
@@ -83,6 +84,7 @@ final class VideoLibrary: ObservableObject {
                 let clip = try await importFile(url, move: false)
                 clips.append(clip)
                 save()
+                optimizeIfWanted(clip)
             } catch {
                 lastError = error.localizedDescription
             }
@@ -101,7 +103,13 @@ final class VideoLibrary: ObservableObject {
         clip.credit = credit
         clips.append(clip)
         save()
+        optimizeIfWanted(clip)
         return clip
+    }
+
+    private func optimizeIfWanted(_ clip: Clip) {
+        guard optimizesNewClips else { return }
+        Task { await optimize(clip) }
     }
 
     func rename(_ clip: Clip, to name: String) {
@@ -124,26 +132,42 @@ final class VideoLibrary: ObservableObject {
 
     // MARK: - Optimizing
 
-    /// Re-encodes a clip to HEVC at no more than 30 fps without audio.
-    /// High frame rates are the most common reason a wallpaper is expensive to play.
+    /// Set from preferences. New imports and downloads are optimized right after they're added.
+    var optimizesNewClips = false
+
+    func needsOptimization(_ clip: Clip) async -> Bool {
+        await Self.plan(for: videoURL(for: clip), targetWidth: NSScreen.widestPixelWidth)?.isWorthIt ?? false
+    }
+
+    /// Optimizes every clip that would benefit, one at a time.
+    func optimizeAll() async {
+        for clip in clips {
+            await optimize(clip)
+        }
+    }
+
+    /// Re-encodes a clip to HEVC at no more than 30 fps, no larger than the widest display and
+    /// without audio. Frame rate and resolution decide how much work every frame of playback is.
     func optimize(_ clip: Clip) async {
         guard !optimizing.contains(clip.id) else { return }
         optimizing.insert(clip.id)
         defer { optimizing.remove(clip.id) }
 
         let source = videoURL(for: clip)
+        guard let plan = await Self.plan(for: source, targetWidth: NSScreen.widestPixelWidth), plan.isWorthIt else { return }
+
         let fileName = "\(clip.id.uuidString)-\(Int(Date().timeIntervalSince1970)).mov"
         let destination = videosURL.appendingPathComponent(fileName)
 
         do {
-            try await Self.encodeOptimized(from: source, to: destination)
+            try await Self.encode(from: source, to: destination, plan: plan)
             guard let index = clips.firstIndex(where: { $0.id == clip.id }) else {
                 try? fileManager.removeItem(at: destination)
                 return
             }
-            clips[index] = Clip(id: clip.id, name: clips[index].name, fileName: fileName,
-                                addedAt: clip.addedAt, duration: clip.duration,
-                                sourceID: clip.sourceID, credit: clip.credit)
+            let old = clips[index]
+            clips[index] = Clip(id: old.id, name: old.name, fileName: fileName, addedAt: old.addedAt,
+                                duration: old.duration, sourceID: old.sourceID, credit: old.credit)
             save()
             try? fileManager.removeItem(at: source)
         } catch {
@@ -152,24 +176,61 @@ final class VideoLibrary: ObservableObject {
         }
     }
 
-    private nonisolated static func encodeOptimized(from source: URL, to destination: URL) async throws {
+    struct OptimizationPlan: Sendable {
+        var size: CGSize
+        var scale: CGFloat
+        var frameRate: Float
+        var hardwareDecoded: Bool
+
+        var capsFrameRate: Bool { frameRate > 31 }
+
+        /// Skip clips that would only change by a few percent; re-encoding always costs a little quality.
+        var isWorthIt: Bool { scale < 0.9 || capsFrameRate || !hardwareDecoded }
+    }
+
+    nonisolated static func plan(for url: URL, targetWidth: Int) async -> OptimizationPlan? {
+        let asset = AVURLAsset(url: url)
+        guard let video = try? await asset.loadTracks(withMediaType: .video).first,
+              let loaded = try? await video.load(.naturalSize, .preferredTransform, .nominalFrameRate, .formatDescriptions)
+        else { return nil }
+        let (naturalSize, transform, frameRate, formats) = loaded
+
+        let oriented = naturalSize.applying(transform)
+        let size = CGSize(width: abs(oriented.width), height: abs(oriented.height))
+        let codec = formats.first.map { CMFormatDescriptionGetMediaSubType($0) } ?? 0
+        let scale = size.width > CGFloat(targetWidth) ? CGFloat(targetWidth) / size.width : 1
+
+        return OptimizationPlan(size: size, scale: scale, frameRate: frameRate,
+                                hardwareDecoded: VTIsHardwareDecodeSupported(codec))
+    }
+
+    private nonisolated static func encode(from source: URL, to destination: URL, plan: OptimizationPlan) async throws {
         let asset = AVURLAsset(url: source)
         guard let video = try await asset.loadTracks(withMediaType: .video).first else {
             throw ImportError.unsupported(source.lastPathComponent)
         }
-        let (range, transform, frameRate) = try await video.load(.timeRange, .preferredTransform, .nominalFrameRate)
+        let (range, transform) = try await video.load(.timeRange, .preferredTransform)
 
         let composition = AVMutableComposition()
         guard let track = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
             throw ImportError.unsupported(source.lastPathComponent)
         }
         try track.insertTimeRange(range, of: video, at: .zero)
-        track.preferredTransform = transform
 
-        let videoComposition = try await AVMutableVideoComposition.videoComposition(withPropertiesOf: composition)
-        if frameRate > 31 {
-            videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
-        }
+        func even(_ value: CGFloat) -> CGFloat { CGFloat(max(2, Int(value.rounded()) / 2 * 2)) }
+        let renderSize = CGSize(width: even(plan.size.width * plan.scale), height: even(plan.size.height * plan.scale))
+        let fps = plan.frameRate > 0 ? min(30, Int32(plan.frameRate.rounded())) : 30
+
+        let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
+        layer.setTransform(transform.concatenating(CGAffineTransform(scaleX: plan.scale, y: plan.scale)), at: .zero)
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: range.duration)
+        instruction.layerInstructions = [layer]
+
+        let videoComposition = AVMutableVideoComposition()
+        videoComposition.renderSize = renderSize
+        videoComposition.frameDuration = CMTime(value: 1, timescale: max(1, fps))
+        videoComposition.instructions = [instruction]
 
         guard let export = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHEVCHighestQuality) else {
             throw ImportError.unsupported(source.lastPathComponent)

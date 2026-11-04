@@ -69,6 +69,9 @@ final class WallpaperController: ObservableObject {
             conditions.$isLocked,
             conditions.$isSessionInactive,
             conditions.$isScreenSaverRunning,
+            conditions.$isUserIdle,
+            conditions.$isOverheating,
+            preferences.$pauseWhenHot,
             preferences.$pauseOnBattery,
             preferences.$pauseInLowPowerMode,
             preferences.$pauseWhenCovered
@@ -76,6 +79,14 @@ final class WallpaperController: ObservableObject {
         .receive(on: DispatchQueue.main)
         .sink { [weak self] _ in self?.updatePlayback() }
         .store(in: &subscriptions)
+
+        preferences.$pauseWhenIdle
+            .combineLatest(preferences.$idleMinutes)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] enabled, minutes in
+                self?.conditions.idleThreshold = enabled ? TimeInterval(minutes * 60) : 0
+            }
+            .store(in: &subscriptions)
 
         NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)
             .filter { $0.object is DesktopWindow }
@@ -185,6 +196,10 @@ final class WallpaperController: ObservableObject {
             "Paused while the screen is off"
         } else if conditions.isScreenSaverRunning {
             "Paused while the screen saver runs"
+        } else if conditions.isUserIdle {
+            "Paused while you're away"
+        } else if preferences.pauseWhenHot && conditions.isOverheating {
+            "Paused while your Mac cools down"
         } else if preferences.pauseOnBattery && conditions.isOnBattery {
             "Paused on battery power"
         } else if preferences.pauseInLowPowerMode && conditions.isLowPowerMode {

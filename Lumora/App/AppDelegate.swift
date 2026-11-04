@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 @MainActor
@@ -11,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let screenSaver: ScreenSaverManager
     let performance: PerformanceMonitor
     let updater: Updater
+    private var subscriptions = Set<AnyCancellable>()
 
     override init() {
         preferences = Preferences()
@@ -26,6 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        preferences.$optimizeNewClips
+            .sink { [library] in library.optimizesNewClips = $0 }
+            .store(in: &subscriptions)
         wallpaper.start()
         screenSaver.start()
     }

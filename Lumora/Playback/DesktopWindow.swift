@@ -34,6 +34,8 @@ final class PlayerView: NSView {
         playerLayer.videoGravity = .resizeAspectFill
         super.init(frame: .zero)
         wantsLayer = true
+        // Everything on screen comes from the player layer, so AppKit never needs to redraw.
+        layerContentsRedrawPolicy = .never
     }
 
     required init?(coder: NSCoder) {
@@ -53,6 +55,13 @@ final class PlayerView: NSView {
 extension NSScreen {
     var displayID: CGDirectDisplayID {
         (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
+    }
+
+    /// Widest connected display in physical pixels, capped at 4K.
+    @MainActor
+    static var widestPixelWidth: Int {
+        let widest = screens.map { $0.frame.width * $0.backingScaleFactor }.max() ?? 2560
+        return min(Int(widest), 3840)
     }
 
     /// Survives reboots, unlike `displayID`.

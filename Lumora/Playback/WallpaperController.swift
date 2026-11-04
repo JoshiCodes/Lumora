@@ -104,12 +104,12 @@ final class WallpaperController: ObservableObject {
         let url = library.videoURL(for: clip)
 
         Task {
-            let item = await Self.silentItem(for: url)
+            let asset = await Self.silentAsset(for: url)
             guard generation == loadGeneration else { return }
 
             looper?.disableLooping()
             player.removeAllItems()
-            looper = AVPlayerLooper(player: player, templateItem: item)
+            looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(asset: asset))
             isUserPaused = false
 
             syncWindows()
@@ -119,24 +119,24 @@ final class WallpaperController: ObservableObject {
     }
 
     /// A muted player still decodes audio. Dropping the track saves that work entirely.
-    private nonisolated static func silentItem(for url: URL) async -> AVPlayerItem {
+    private nonisolated static func silentAsset(for url: URL) async -> AVAsset {
         let asset = AVURLAsset(url: url)
         do {
             let audio = try await asset.loadTracks(withMediaType: .audio)
             guard !audio.isEmpty, let video = try await asset.loadTracks(withMediaType: .video).first else {
-                return AVPlayerItem(asset: asset)
+                return asset
             }
             let (range, transform) = try await video.load(.timeRange, .preferredTransform)
 
             let composition = AVMutableComposition()
             guard let track = composition.addMutableTrack(withMediaType: .video,
                                                           preferredTrackID: kCMPersistentTrackID_Invalid)
-            else { return AVPlayerItem(asset: asset) }
+            else { return asset }
             try track.insertTimeRange(range, of: video, at: .zero)
             track.preferredTransform = transform
-            return AVPlayerItem(asset: composition)
+            return composition
         } catch {
-            return AVPlayerItem(asset: asset)
+            return asset
         }
     }
 

@@ -38,9 +38,17 @@ final class LockScreenManager: ObservableObject {
         static let enabled = "lockScreenEnabled"
         static let installedClip = "lockScreenClip"
         static let installedFile = "lockScreenFile"
+        static let installedSize = "lockScreenSize"
     }
 
-    static let aerialsRoot = URL(fileURLWithPath: "/Library/Application Support/com.apple.idleassetsd/Customer", isDirectory: true)
+    /// macOS 27 and later keep Aerials in the user's own Library.
+    static var userAerialsRoot: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/com.apple.wallpaper/aerials", isDirectory: true)
+    }
+
+    /// Sonoma and Sequoia keep them in a system folder owned by root.
+    static let systemAerialsRoot = URL(fileURLWithPath: "/Library/Application Support/com.apple.idleassetsd/Customer", isDirectory: true)
 
     private let library: VideoLibrary
     private let preferences: Preferences
@@ -87,33 +95,75 @@ final class LockScreenManager: ObservableObject {
 
     /// Lists the Aerials macOS has downloaded. Names come from Apple's catalog next to them.
     func refresh() {
-        let root = Self.aerialsRoot
         var names: [String: String] = [:]
-        if let data = try? Data(contentsOf: root.appendingPathComponent("entries.json")),
-           let catalog = try? JSONDecoder().decode(Catalog.self, from: data) {
-            for asset in catalog.assets {
+        for catalog in catalogFiles() {
+            guard let data = try? Data(contentsOf: catalog),
+                  let parsed = try? JSONDecoder().decode(Catalog.self, from: data)
+            else { continue }
+            for asset in parsed.assets where names[asset.id.uppercased()] == nil {
                 names[asset.id.uppercased()] = asset.accessibilityLabel
             }
         }
 
         var found: [Aerial] = []
-        let folders = (try? fileManager.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
-        for folder in folders where (try? folder.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-            let files = (try? fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
-            for file in files where file.pathExtension.lowercased() == "mov" {
-                let id = file.deletingPathExtension().lastPathComponent
-                guard !found.contains(where: { $0.id == id }) else { continue }
-                found.append(Aerial(id: id, name: names[id.uppercased()] ?? "Aerial \(id.prefix(8))", url: file))
-            }
+        for file in movieFiles() {
+            let id = file.deletingPathExtension().lastPathComponent
+            guard !found.contains(where: { $0.id == id }) else { continue }
+            found.append(Aerial(id: id, name: names[id.uppercased()] ?? "Aerial \(id.prefix(8))", url: file))
         }
         aerials = found.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
 
         if targetID == nil || target == nil {
             targetID = aerials.first?.id
         }
-        if isEnabled, let target {
-            // macOS hands the file back to the system when it updates or re-downloads an Aerial.
-            needsSetupAgain = !fileManager.isWritableFile(atPath: target.url.path)
+        checkInstalledFile()
+    }
+
+    /// Video files of downloaded Aerials, newest location first.
+    private func movieFiles() -> [URL] {
+        var folders = [Self.userAerialsRoot.appendingPathComponent("videos", isDirectory: true)]
+        let legacy = (try? fileManager.contentsOfDirectory(at: Self.systemAerialsRoot, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
+        folders += legacy.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+
+        return folders.flatMap { folder in
+            ((try? fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
+                .filter { $0.pathExtension.lowercased() == "mov" }
+        }
+    }
+
+    /// Apple's catalog with the Aerials' names. Its exact place has moved between releases.
+    private func catalogFiles() -> [URL] {
+        var files: [URL] = []
+        if let enumerator = fileManager.enumerator(at: Self.userAerialsRoot, includingPropertiesForKeys: nil,
+                                                   options: [.skipsHiddenFiles]) {
+            for case let url as URL in enumerator {
+                if url.pathComponents.count - Self.userAerialsRoot.pathComponents.count > 3 {
+                    enumerator.skipDescendants()
+                    continue
+                }
+                if url.lastPathComponent == "entries.json" { files.append(url) }
+            }
+        }
+        files.append(Self.systemAerialsRoot.appendingPathComponent("entries.json"))
+        return files
+    }
+
+    /// macOS replaces the file when it updates or re-downloads an Aerial. Files in the user's
+    /// Library can simply be swapped again; system files need the password once more.
+    private func checkInstalledFile() {
+        guard isEnabled, let target else {
+            needsSetupAgain = false
+            return
+        }
+        let expected = UserDefaults.standard.object(forKey: Key.installedSize) as? Int
+        let actual = (try? target.url.resourceValues(forKeys: [.fileSizeKey]).fileSize)
+        let wasReplaced = expected != nil && actual != expected
+
+        if !fileManager.isWritableFile(atPath: target.url.path) {
+            needsSetupAgain = true
+        } else if wasReplaced, !isBusy, let clip = library.activeClip {
+            needsSetupAgain = false
+            install(clip, into: target)
         } else {
             needsSetupAgain = false
         }
@@ -157,6 +207,7 @@ final class LockScreenManager: ObservableObject {
         isEnabled = false
         installedClipID = nil
         UserDefaults.standard.removeObject(forKey: Key.installedFile)
+        UserDefaults.standard.removeObject(forKey: Key.installedSize)
 
         guard fileManager.fileExists(atPath: backup.path) else {
             state = .idle
@@ -214,6 +265,8 @@ final class LockScreenManager: ObservableObject {
 
                 installedClipID = clip.id
                 UserDefaults.standard.set(clip.fileName, forKey: Key.installedFile)
+                let size = (try? target.url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                UserDefaults.standard.set(size, forKey: Key.installedSize)
                 restartWallpaperAgent()
                 state = .idle
             } catch is CancellationError {
@@ -274,10 +327,11 @@ final class LockScreenManager: ObservableObject {
 
     // MARK: - System
 
+    /// The wallpaper agent and the Aerials extension keep the old video open. Both restart on their own.
     private func restartWallpaperAgent() {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
-        process.arguments = ["WallpaperAgent"]
+        process.arguments = ["WallpaperAgent", "WallpaperAerialsExtension"]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try? process.run()

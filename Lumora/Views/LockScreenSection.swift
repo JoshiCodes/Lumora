@@ -76,7 +76,7 @@ struct LockScreenSection: View {
 
     private var noAerials: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("First download any Aerial: open System Settings › Wallpaper, pick one of the moving Landscape, Cityscape, Underwater or Earth wallpapers and wait until it's downloaded. Then come back here.")
+            Text("First download an Aerial: open System Settings › Wallpaper, pick one of the moving Landscape, Cityscape, Underwater or Earth wallpapers and wait until it's downloaded and moving. Then come back here and click Check Again.")
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
@@ -97,7 +97,7 @@ struct LockScreenSection: View {
             .frame(maxWidth: 380)
 
             VStack(alignment: .leading, spacing: 6) {
-                step(1, "Click Set Up. macOS asks for your password once.")
+                step(1, "Click Set Up. On macOS 14 and 15, macOS asks for your password once.")
                 step(2, "In System Settings › Wallpaper, choose “\(lockScreen.target?.name ?? "that Aerial")” as your wallpaper.")
                 step(3, "Lock your Mac. From now on the lock screen follows whatever plays on your desktop.")
             }
@@ -120,7 +120,7 @@ struct LockScreenSection: View {
             }
             .controlSize(.large)
 
-            Text("Lumora swaps the video file behind the chosen Aerial and keeps Apple's original to put it back anytime. While this is on, Lumora leaves your desktop picture alone, so the Aerial stays selected. A macOS update can restore Apple's video; Lumora notices and lets you set it up again.")
+            Text("Lumora swaps the video file behind the chosen Aerial and keeps Apple's original to put it back anytime. While this is on, Lumora leaves your desktop picture alone, so the Aerial stays selected. If macOS downloads the Aerial again, Lumora puts your video back.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

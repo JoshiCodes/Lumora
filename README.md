@@ -6,6 +6,7 @@ Live video wallpapers for macOS. Bring your own clips or find new ones on Motion
 - **Library:** drag and drop your own videos, rename, sort and filter them
 - **Rotation:** change the wallpaper every few minutes, hours or once a day, in order or shuffled
 - **Smooth switching:** wallpapers cross-fade instead of cutting through black
+- **Ultrawide friendly:** *Fit, Blurred Edges* shows the whole video and fills the sides with a soft, blurred copy instead of cropping or black bars
 - **Discover:** browse and search MotionBGs, Pexels and Pixabay, preview a clip and set it as your wallpaper in one click
 - **Animated lock screen** (experimental): your wallpaper keeps moving on the lock screen
 - **Screen Saver:** a matching screen saver that plays videos from your library
@@ -21,7 +22,7 @@ Requires macOS 15 or later, on Apple Silicon or Intel.
 - One decoder for all displays. Every screen and the in-app preview share the same player.
 - Audio tracks are dropped before playback, so nothing is decoded that you can't hear.
 - Downloads pick the smallest file that still covers your display instead of always grabbing 4K.
-- Videos are optimized when you add them: HEVC, at most 30 fps and no larger than your widest display.
+- Videos are optimized when you add them: HEVC, at most 30 fps and no larger than your displays need. Ultrawides are accounted for by height, so clips stay sharp there.
 - Batch imports are encoded one at a time instead of all at once.
 - Playback stops while the desktop is hidden behind full-screen apps, while the screen is locked, asleep or showing the screen saver, when you've been away for a few minutes and when the Mac runs hot. Optionally also on battery or in Low Power Mode.
 - Reduce Motion in Accessibility settings is respected: Lumora shows a still picture instead.
@@ -89,7 +90,7 @@ macOS only animates its own Aerial wallpapers on the lock screen, and there is n
 2. In Lumora's **Lock Screen** tab, pick that Aerial and click **Set Up**. Lumora keeps a backup of Apple's original. From macOS 27 on, Aerials live in your own Library and no password is needed. On macOS 14 and 15 they're in a system folder, so macOS asks for your password once and Lumora takes ownership of that single file.
 3. Choose the same Aerial as your wallpaper in System Settings.
 
-From then on the lock screen plays whatever is on your desktop and follows every change, converted to HEVC when needed. **Restore Apple's Video** puts the original back. While this is on, Lumora doesn't set a still desktop picture, since that would replace the Aerial.
+From then on the lock screen plays whatever is on your desktop and follows every change, converted to HEVC when needed. Quick changes are bundled into one update, converted clips are cached, and every update is checked: if a file doesn't play, Lumora retries and otherwise puts Apple's video back instead of leaving a black screen. **Restore Apple's Video** puts the original back. While this is on, Lumora doesn't set a still desktop picture, since that would replace the Aerial.
 
 This relies on how macOS stores Aerials internally, which has already moved once (from `/Library/Application Support/com.apple.idleassetsd` to `~/Library/Application Support/com.apple.wallpaper/aerials` in macOS 27). If macOS downloads the Aerial again, Lumora puts your video back automatically, or asks for the password again on older systems.
 

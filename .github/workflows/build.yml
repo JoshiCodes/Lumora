@@ -28,6 +28,13 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Building Lumora $version"
 
+      - name: Resolve packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project Lumora.xcodeproj \
+            -scheme Lumora \
+            -clonedSourcePackagesDirPath build/SourcePackages
+
       - name: Test
         run: |
           xcodebuild test \
@@ -35,6 +42,8 @@ jobs:
             -scheme Lumora \
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath build \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            -disableAutomaticPackageResolution \
             -quiet
 
       - name: Build release
@@ -44,6 +53,8 @@ jobs:
             -scheme Lumora \
             -configuration Release \
             -derivedDataPath build \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            -disableAutomaticPackageResolution \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             -quiet
 

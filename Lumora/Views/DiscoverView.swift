@@ -99,10 +99,16 @@ struct DiscoverView: View {
                     .padding(.bottom, 12)
             }
 
-            Link("Videos provided by \(model.provider.title)", destination: model.provider.homepage)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 18)
+            VStack(spacing: 4) {
+                Link("Videos provided by \(model.provider.title)", destination: model.provider.homepage)
+                if model.provider == .motionBGs {
+                    Text("Fan-made wallpapers, many based on games, anime and films. Meant for personal use on your own desktop.")
+                }
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.bottom, 18)
         }
     }
 

@@ -46,3 +46,23 @@ final class RemoteFileTests: XCTestCase {
         XCTAssertEqual(RemoteVideo.File.best(in: files, covering: 3024)?.width, 1920)
     }
 }
+
+final class MotionBGsParserTests: XCTestCase {
+    func testParsesListingEntries() {
+        let html = """
+        <div class=tmb><a title="Black Hole &amp; Stars live wallpaper" href=/black-hole> <figure><picture>\
+        <source srcset=/i/c/546x308/media/53/black-hole.3840x2160.jpg type=image/jpeg></picture>\
+        <span class=ttl>Black Hole</span> <span class=frm> 4K </span> </a>\
+        <a title="Spaceman Walking live wallpaper" href=/spaceman-walking> <figure><picture>\
+        <source srcset=/i/c/546x308/media/3/spaceman-walking.1920x1080.jpg type=image/jpeg></picture>\
+        <span class=frm> HD </span> </a>
+        """
+        let videos = MotionBGsProvider.parse(html)
+        XCTAssertEqual(videos.map(\.id), ["motionbgs-53", "motionbgs-3"])
+        XCTAssertEqual(videos.first?.title, "Black Hole & Stars")
+        XCTAssertEqual(videos.first?.maxWidth, 3840)
+        XCTAssertEqual(videos.last?.maxWidth, 1920)
+        XCTAssertEqual(videos.last?.previewFile?.url.absoluteString,
+                       "https://motionbgs.com/media/3/spaceman-walking.960x540.mp4")
+    }
+}

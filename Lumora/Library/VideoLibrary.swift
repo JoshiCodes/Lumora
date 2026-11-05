@@ -143,7 +143,7 @@ final class VideoLibrary: ObservableObject {
     private var optimizationQueue: Task<Void, Never>?
 
     func needsOptimization(_ clip: Clip) async -> Bool {
-        await Self.plan(for: videoURL(for: clip), targetWidth: NSScreen.widestPixelWidth)?.isWorthIt ?? false
+        await Self.plan(for: videoURL(for: clip), screens: NSScreen.pixelSizes)?.isWorthIt ?? false
     }
 
     /// Optimizes every clip that would benefit, one at a time.
@@ -161,7 +161,7 @@ final class VideoLibrary: ObservableObject {
         defer { optimizing.remove(clip.id) }
 
         let source = videoURL(for: clip)
-        guard let plan = await Self.plan(for: source, targetWidth: NSScreen.widestPixelWidth), plan.isWorthIt else { return }
+        guard let plan = await Self.plan(for: source, screens: NSScreen.pixelSizes), plan.isWorthIt else { return }
 
         let fileName = "\(clip.id.uuidString)-\(Int(Date().timeIntervalSince1970)).mov"
         let destination = videosURL.appendingPathComponent(fileName)
@@ -196,7 +196,9 @@ final class VideoLibrary: ObservableObject {
         var isWorthIt: Bool { scale < 0.9 || capsFrameRate || !hardwareDecoded }
     }
 
-    nonisolated static func plan(for url: URL, targetWidth: Int) async -> OptimizationPlan? {
+    /// Works out how far a clip can shrink while still filling every display sharply.
+    /// A 16:9 clip on a 21:9 ultrawide is scaled by height, so it needs more width than the screen has.
+    nonisolated static func plan(for url: URL, screens: [CGSize]) async -> OptimizationPlan? {
         let asset = AVURLAsset(url: url)
         guard let video = try? await asset.loadTracks(withMediaType: .video).first,
               let loaded = try? await video.load(.naturalSize, .preferredTransform, .nominalFrameRate, .formatDescriptions)
@@ -206,7 +208,9 @@ final class VideoLibrary: ObservableObject {
         let oriented = naturalSize.applying(transform)
         let size = CGSize(width: abs(oriented.width), height: abs(oriented.height))
         let codec = formats.first.map { CMFormatDescriptionGetMediaSubType($0) } ?? 0
-        let scale = size.width > CGFloat(targetWidth) ? CGFloat(targetWidth) / size.width : 1
+        let aspect = size.height > 0 ? size.width / size.height : 16 / 9
+        let needed = screens.map { max($0.width, $0.height * aspect) }.max() ?? size.width
+        let scale = size.width > needed ? needed / size.width : 1
 
         return OptimizationPlan(size: size, scale: scale, frameRate: frameRate,
                                 hardwareDecoded: VTIsHardwareDecodeSupported(codec),

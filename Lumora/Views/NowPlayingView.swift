@@ -29,7 +29,8 @@ struct NowPlayingView: View {
     private var stage: some View {
         ZStack {
             if library.activeClip != nil {
-                PlayerPreview(player: wallpaper.player, gravity: preferences.scaling.videoGravity)
+                PlayerPreview(player: wallpaper.player, gravity: preferences.scaling.videoGravity,
+                              blurredEdges: preferences.scaling.showsBlurredEdges)
                     .background(.black)
             } else {
                 placeholder

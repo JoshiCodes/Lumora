@@ -156,14 +156,19 @@ struct PerformancePane: View {
         }
     }
 
+    private func requiredWidth(for video: VideoDetails) -> Int {
+        let aspect = video.resolution.height > 0 ? video.resolution.width / video.resolution.height : 16 / 9
+        return NSScreen.requiredVideoWidth(aspectRatio: aspect)
+    }
+
     private func needsOptimizing(_ video: VideoDetails) -> Bool {
         video.frameRate > 31 || !video.hardwareDecoding
-            || video.resolution.width > CGFloat(NSScreen.widestPixelWidth) / 0.9
+            || video.resolution.width > CGFloat(requiredWidth(for: video)) / 0.9
     }
 
     private func hints(for video: VideoDetails) -> [String] {
         var hints: [String] = []
-        let display = NSScreen.screens.map { $0.frame.width * $0.backingScaleFactor }.max() ?? 0
+        let display = CGFloat(requiredWidth(for: video))
         if display > 0, video.resolution.width > display * 1.2 {
             hints.append("This video is larger than your display. A smaller version would need less decoding.")
         }

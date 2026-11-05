@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import Combine
 
@@ -55,6 +56,11 @@ final class LockScreenManager: ObservableObject {
     private let fileManager = FileManager.default
     private var subscriptions = Set<AnyCancellable>()
     private var updateTask: Task<Void, Never>?
+    /// Wallpaper changes wait a moment, so clicking through several clips only updates once.
+    private var debounceTask: Task<Void, Never>?
+    /// Only one install runs at a time. A request that comes in meanwhile replaces this one.
+    private var pendingClipID: UUID?
+    private var installLoop: Task<Void, Never>?
 
     init(library: VideoLibrary, preferences: Preferences) {
         self.library = library
@@ -161,11 +167,25 @@ final class LockScreenManager: ObservableObject {
 
         if !fileManager.isWritableFile(atPath: target.url.path) {
             needsSetupAgain = true
-        } else if wasReplaced, !isBusy, let clip = library.activeClip {
+        } else if wasReplaced, let clip = library.activeClip {
             needsSetupAgain = false
-            install(clip, into: target)
+            requestInstall(clip)
         } else {
             needsSetupAgain = false
+            repairIfBroken(target)
+        }
+    }
+
+    /// Checks that the lock screen file actually plays. A broken or half-written file shows up
+    /// as a black lock screen, so put the wallpaper back in place when that happens.
+    private func repairIfBroken(_ target: Aerial) {
+        guard installLoop == nil, installedClipID != nil else { return }
+        Task {
+            guard !(await Self.isPlayable(target.url)), installLoop == nil,
+                  let clip = library.activeClip
+            else { return }
+            UserDefaults.standard.removeObject(forKey: Key.installedFile)
+            requestInstall(clip)
         }
     }
 
@@ -198,14 +218,16 @@ final class LockScreenManager: ObservableObject {
         }
         isEnabled = true
         needsSetupAgain = false
-        install(clip, into: target)
+        requestInstall(clip)
     }
 
     func restoreOriginal() {
-        guard let target, !isBusy else { return }
+        guard let target else { return }
         let backup = backupURL(for: target)
         isEnabled = false
         installedClipID = nil
+        debounceTask?.cancel()
+        pendingClipID = nil
         UserDefaults.standard.removeObject(forKey: Key.installedFile)
         UserDefaults.standard.removeObject(forKey: Key.installedSize)
 
@@ -214,12 +236,14 @@ final class LockScreenManager: ObservableObject {
             return
         }
         state = .working("Restoring Apple's video…")
+        let running = installLoop
         updateTask = Task {
+            // Let a running install finish first, so the two writes can't interleave.
+            await running?.value
             do {
-                try await Task.detached(priority: .utility) {
-                    try Self.overwrite(target.url, with: backup)
-                }.value
+                try await Self.write(backup, to: target.url)
                 try? fileManager.removeItem(at: backup)
+                clearCache()
                 restartWallpaperAgent()
                 state = .idle
             } catch {
@@ -244,52 +268,134 @@ final class LockScreenManager: ObservableObject {
             needsSetupAgain = true
             return
         }
-        install(clip, into: target)
+
+        debounceTask?.cancel()
+        debounceTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let current = library.activeClip else { return }
+            requestInstall(current)
+        }
     }
 
-    private func install(_ clip: Clip, into target: Aerial) {
-        updateTask?.cancel()
+    private func requestInstall(_ clip: Clip) {
+        pendingClipID = clip.id
+        guard installLoop == nil else { return }
+
+        installLoop = Task {
+            while let id = pendingClipID {
+                pendingClipID = nil
+                guard isEnabled, let target, let clip = library.clip(withID: id) else { continue }
+                await install(clip, into: target)
+            }
+            installLoop = nil
+        }
+    }
+
+    private func install(_ clip: Clip, into target: Aerial) async {
         state = .working("Preparing “\(clip.name)” for the lock screen…")
-
         let source = library.videoURL(for: clip)
-        let width = NSScreen.widestPixelWidth
-        updateTask = Task {
-            do {
-                let prepared = try await Self.lockScreenFile(from: source, targetWidth: width)
-                guard !Task.isCancelled else { return }
-                state = .working("Updating the lock screen…")
-                try await Task.detached(priority: .utility) {
-                    try Self.overwrite(target.url, with: prepared.url)
-                }.value
-                if prepared.isTemporary { try? FileManager.default.removeItem(at: prepared.url) }
+        let screens = NSScreen.pixelSizes
+        let cache = cacheURL(for: clip)
 
-                installedClipID = clip.id
-                UserDefaults.standard.set(clip.fileName, forKey: Key.installedFile)
-                let size = (try? target.url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-                UserDefaults.standard.set(size, forKey: Key.installedSize)
+        do {
+            let prepared = try await Self.lockScreenFile(from: source, cache: cache, screens: screens)
+            // A newer wallpaper is already waiting. Skip writing this one.
+            if pendingClipID != nil { return }
+
+            state = .working("Updating the lock screen…")
+            var attempts = 0
+            repeat {
+                attempts += 1
+                try await Self.write(prepared, to: target.url)
+            } while !(await Self.isPlayable(target.url)) && attempts < 2
+
+            guard await Self.isPlayable(target.url) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+
+            installedClipID = clip.id
+            UserDefaults.standard.set(clip.fileName, forKey: Key.installedFile)
+            let size = (try? target.url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            UserDefaults.standard.set(size, forKey: Key.installedSize)
+            trimCache(keeping: cache)
+            restartWallpaperAgent()
+            state = .idle
+        } catch {
+            // Never leave a broken file behind: a black lock screen is worse than Apple's video.
+            let backup = backupURL(for: target)
+            if !(await Self.isPlayable(target.url)), fileManager.fileExists(atPath: backup.path) {
+                try? await Self.write(backup, to: target.url)
                 restartWallpaperAgent()
-                state = .idle
-            } catch is CancellationError {
-                return
-            } catch {
+                installedClipID = nil
+                UserDefaults.standard.removeObject(forKey: Key.installedFile)
+                state = .failed("Couldn't put “\(clip.name)” on the lock screen, so Apple's video is back for now. \(error.localizedDescription)")
+            } else {
                 state = .failed("Couldn't update the lock screen: \(error.localizedDescription)")
             }
         }
     }
 
     /// Aerials are HEVC QuickTime movies. Clips that already are one go in as they are,
-    /// everything else is converted first.
-    private nonisolated static func lockScreenFile(from source: URL, targetWidth: Int) async throws -> (url: URL, isTemporary: Bool) {
-        guard let plan = await VideoLibrary.plan(for: source, targetWidth: targetWidth) else {
+    /// everything else is converted once and kept in a small cache.
+    private nonisolated static func lockScreenFile(from source: URL, cache: URL, screens: [CGSize]) async throws -> URL {
+        if FileManager.default.fileExists(atPath: cache.path), await isPlayable(cache) {
+            return cache
+        }
+        guard let plan = await VideoLibrary.plan(for: source, screens: screens) else {
             throw ImportError.unsupported(source.lastPathComponent)
         }
         if plan.isHEVC, !plan.isWorthIt, source.pathExtension.lowercased() == "mov" {
-            return (source, false)
+            return source
         }
-        let temporary = FileManager.default.temporaryDirectory
-            .appendingPathComponent("lumora-lockscreen-\(UUID().uuidString).mov")
-        try await VideoLibrary.encode(from: source, to: temporary, plan: plan)
-        return (temporary, true)
+        try FileManager.default.createDirectory(at: cache.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let partial = cache.deletingLastPathComponent().appendingPathComponent(".\(UUID().uuidString).mov")
+        do {
+            try await VideoLibrary.encode(from: source, to: partial, plan: plan)
+            _ = try? FileManager.default.removeItem(at: cache)
+            try FileManager.default.moveItem(at: partial, to: cache)
+        } catch {
+            try? FileManager.default.removeItem(at: partial)
+            throw error
+        }
+        return cache
+    }
+
+    private nonisolated static func isPlayable(_ url: URL) async -> Bool {
+        let asset = AVURLAsset(url: url)
+        guard let loaded = try? await asset.load(.isPlayable, .duration),
+              loaded.0, loaded.1.seconds > 0.5,
+              let tracks = try? await asset.loadTracks(withMediaType: .video), !tracks.isEmpty
+        else { return false }
+        return true
+    }
+
+    // MARK: - Cache
+
+    private var cacheFolder: URL {
+        library.root.appendingPathComponent("Lock Screen Cache", isDirectory: true)
+    }
+
+    private func cacheURL(for clip: Clip) -> URL {
+        cacheFolder.appendingPathComponent("\((clip.fileName as NSString).deletingPathExtension).mov")
+    }
+
+    /// Keeps the last few converted clips, so switching back and forth is instant.
+    private func trimCache(keeping current: URL, limit: Int = 3) {
+        let files = (try? fileManager.contentsOfDirectory(at: cacheFolder, includingPropertiesForKeys: [.contentModificationDateKey],
+                                                          options: [.skipsHiddenFiles])) ?? []
+        try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: current.path)
+        let sorted = files.sorted {
+            let a = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let b = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return a > b
+        }
+        for file in sorted.dropFirst(limit) where file != current {
+            try? fileManager.removeItem(at: file)
+        }
+    }
+
+    private func clearCache() {
+        try? fileManager.removeItem(at: cacheFolder)
     }
 
     // MARK: - Files
@@ -309,20 +415,39 @@ final class LockScreenManager: ObservableObject {
         try fileManager.copyItem(at: aerial.url, to: backup)
     }
 
-    /// Writes into the existing file instead of replacing it. Lumora owns the file but not the
-    /// folder, and keeping the same file also keeps whatever macOS knows about it.
-    private nonisolated static func overwrite(_ target: URL, with source: URL) throws {
-        let input = try FileHandle(forReadingFrom: source)
-        let output = try FileHandle(forWritingTo: target)
-        defer {
-            try? input.close()
-            try? output.close()
-        }
-        try output.truncate(atOffset: 0)
-        while let chunk = try input.read(upToCount: 8 << 20), !chunk.isEmpty {
-            try output.write(contentsOf: chunk)
-        }
-        try output.synchronize()
+    /// Puts `source` in place of `target` without macOS ever seeing a half-written file.
+    /// Where Lumora owns the folder (macOS 27 and later), the new file is written next to the old
+    /// one and swapped in with a single rename. In the system folder of older releases Lumora only
+    /// owns the file itself, so it's rewritten in place.
+    private nonisolated static func write(_ source: URL, to target: URL) async throws {
+        try await Task.detached(priority: .utility) {
+            let fileManager = FileManager.default
+            let folder = target.deletingLastPathComponent()
+
+            if fileManager.isWritableFile(atPath: folder.path) {
+                let staging = folder.appendingPathComponent(".lumora-\(UUID().uuidString).mov")
+                do {
+                    try fileManager.copyItem(at: source, to: staging)
+                    _ = try fileManager.replaceItemAt(target, withItemAt: staging)
+                } catch {
+                    try? fileManager.removeItem(at: staging)
+                    throw error
+                }
+                return
+            }
+
+            let input = try FileHandle(forReadingFrom: source)
+            let output = try FileHandle(forWritingTo: target)
+            defer {
+                try? input.close()
+                try? output.close()
+            }
+            try output.truncate(atOffset: 0)
+            while let chunk = try input.read(upToCount: 8 << 20), !chunk.isEmpty {
+                try output.write(contentsOf: chunk)
+            }
+            try output.synchronize()
+        }.value
     }
 
     // MARK: - System

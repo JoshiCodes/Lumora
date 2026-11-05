@@ -5,6 +5,7 @@ import ServiceManagement
 enum Scaling: String, CaseIterable, Identifiable {
     case fill
     case fit
+    case fitBlurred
 
     var id: String { rawValue }
 
@@ -12,15 +13,19 @@ enum Scaling: String, CaseIterable, Identifiable {
         switch self {
         case .fill: "Fill Screen"
         case .fit: "Fit to Screen"
+        case .fitBlurred: "Fit, Blurred Edges"
         }
     }
 
     var videoGravity: AVLayerVideoGravity {
         switch self {
         case .fill: .resizeAspectFill
-        case .fit: .resizeAspect
+        case .fit, .fitBlurred: .resizeAspect
         }
     }
+
+    /// Fills the space around a fitted video with a blurred copy of it, instead of black bars.
+    var showsBlurredEdges: Bool { self == .fitBlurred }
 }
 
 @MainActor

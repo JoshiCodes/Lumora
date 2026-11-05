@@ -67,7 +67,7 @@ final class WallpaperController: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] scaling in
                 guard let self else { return }
-                windows.values.forEach { $0.videoGravity = scaling.videoGravity }
+                windows.values.forEach { $0.scaling = scaling }
                 if preferences.matchDesktopPicture { applyDesktopPicture() }
             }
             .store(in: &subscriptions)
@@ -318,7 +318,7 @@ final class WallpaperController: ObservableObject {
                 window = DesktopWindow()
                 addedScreen = true
             }
-            window.videoGravity = preferences.scaling.videoGravity
+            window.scaling = preferences.scaling
             window.show(player, animated: animated)
             window.setFrame(screen.frame, display: true)
             window.orderFront(nil)

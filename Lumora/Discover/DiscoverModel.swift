@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor
 final class DiscoverModel: ObservableObject {
-    @Published var provider: ProviderID = .nasa {
+    @Published var provider: ProviderID = .motionBGs {
         didSet { if oldValue != provider { reload() } }
     }
     @Published var query = ""

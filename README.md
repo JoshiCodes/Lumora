@@ -1,12 +1,12 @@
 # Lumora
 
-Live video wallpapers for macOS. Bring your own clips or find new ones from NASA, MotionBGs, the Internet Archive, Pexels and Pixabay, and Lumora plays them behind your desktop icons on every display and every Space.
+Live video wallpapers for macOS. Bring your own clips or find new ones on MotionBGs, Pexels and Pixabay, and Lumora plays them behind your desktop icons on every display and every Space.
 
 - **Now Playing:** live preview of what's on your desktop, with pause, stop and scaling
 - **Library:** drag and drop your own videos, rename, sort and filter them
 - **Rotation:** change the wallpaper every few minutes, hours or once a day, in order or shuffled
 - **Smooth switching:** wallpapers cross-fade instead of cutting through black
-- **Discover:** browse and search NASA, MotionBGs, the Internet Archive, Pexels and Pixabay, preview a clip and set it as your wallpaper in one click
+- **Discover:** browse and search MotionBGs, Pexels and Pixabay, preview a clip and set it as your wallpaper in one click
 - **Animated lock screen** (experimental): your wallpaper keeps moving on the lock screen
 - **Screen Saver:** a matching screen saver that plays videos from your library
 - **Performance:** live CPU, memory and GPU readings, details about the current video, and an impact test
@@ -53,9 +53,7 @@ You only need to do this once. Later versions arrive through the built-in update
 
 | Source | Key needed | Good for |
 | --- | --- | --- |
-| [NASA Image and Video Library](https://images.nasa.gov) | No | Earth from orbit, auroras, launches, planets |
 | [MotionBGs](https://motionbgs.com) | No | Live wallpapers from games, anime, films, nature and space |
-| [Internet Archive](https://archive.org/details/movies) | No | Time-lapses, aerials, public domain footage |
 | [Pexels](https://www.pexels.com/api/) | Yes, free | Polished stock footage in 4K |
 | [Pixabay](https://pixabay.com/api/docs/) | Yes, free | Stock footage and motion backgrounds |
 

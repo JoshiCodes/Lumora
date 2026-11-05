@@ -1,9 +1,7 @@
 import Foundation
 
 enum ProviderID: String, CaseIterable, Identifiable, Codable {
-    case nasa
     case motionBGs
-    case archive
     case pexels
     case pixabay
 
@@ -11,9 +9,7 @@ enum ProviderID: String, CaseIterable, Identifiable, Codable {
 
     var title: String {
         switch self {
-        case .nasa: "NASA"
         case .motionBGs: "MotionBGs"
-        case .archive: "Internet Archive"
         case .pexels: "Pexels"
         case .pixabay: "Pixabay"
         }
@@ -21,16 +17,14 @@ enum ProviderID: String, CaseIterable, Identifiable, Codable {
 
     var needsKey: Bool {
         switch self {
-        case .nasa, .motionBGs, .archive: false
+        case .motionBGs: false
         case .pexels, .pixabay: true
         }
     }
 
     var homepage: URL {
         switch self {
-        case .nasa: URL(string: "https://images.nasa.gov")!
         case .motionBGs: URL(string: "https://motionbgs.com")!
-        case .archive: URL(string: "https://archive.org/details/movies")!
         case .pexels: URL(string: "https://www.pexels.com")!
         case .pixabay: URL(string: "https://pixabay.com")!
         }
@@ -40,24 +34,20 @@ enum ProviderID: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .pexels: URL(string: "https://www.pexels.com/api/new/")!
         case .pixabay: URL(string: "https://pixabay.com/api/docs/")!
-        case .nasa, .motionBGs, .archive: homepage
+        case .motionBGs: homepage
         }
     }
 
     var searchPrompt: String {
         switch self {
-        case .nasa: "Search NASA, e.g. Earth, Aurora, Mars"
         case .motionBGs: "Search MotionBGs, e.g. Anime, Cyberpunk, Nature"
-        case .archive: "Search the Internet Archive"
         case .pexels, .pixabay: "Search \(title)"
         }
     }
 
     var client: VideoProvider {
         switch self {
-        case .nasa: NASAProvider()
         case .motionBGs: MotionBGsProvider()
-        case .archive: ArchiveProvider()
         case .pexels: PexelsProvider()
         case .pixabay: PixabayProvider()
         }

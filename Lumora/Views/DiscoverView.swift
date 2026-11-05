@@ -7,8 +7,8 @@ struct DiscoverView: View {
     @State private var selected: RemoteVideo?
 
     private let columns = [GridItem(.adaptive(minimum: 240, maximum: 340), spacing: 18)]
-    private let topics = ["Earth", "Ocean", "Aurora", "Galaxy", "Clouds", "Forest", "Rain",
-                          "Mountains", "City Lights", "Sunset", "Abstract", "Fire"]
+    private let topics = ["Nature", "Space", "Anime", "Cyberpunk", "Rain", "Ocean", "City",
+                          "Fantasy", "Games", "Cars", "Sunset", "Abstract"]
 
     var body: some View {
         content

@@ -16,10 +16,12 @@ struct SettingsPane: View {
                 Picker("Scaling", selection: $preferences.scaling) {
                     ForEach(Scaling.allCases) { Text($0.title).tag($0) }
                 }
+                .disabled(preferences.isManaged(\Preferences.scaling))
                 Toggle(isOn: $preferences.matchDesktopPicture) {
                     Text("Match desktop picture")
                     Text("Uses the first frame as your regular wallpaper, so Mission Control and the lock screen look the same. Turn this off when you use the animated lock screen.")
                 }
+                .disabled(preferences.isManaged(\Preferences.matchDesktopPicture))
             }
 
             Section("Rotation") {
@@ -32,34 +34,43 @@ struct SettingsPane: View {
                     Text("Every 3 hours").tag(180)
                     Text("Every day").tag(1440)
                 }
+                .disabled(preferences.isManaged(\Preferences.rotationMinutes))
                 if preferences.rotationMinutes > 0 {
                     Toggle("Random order", isOn: $preferences.rotationShuffle)
+                        .disabled(preferences.isManaged(\Preferences.rotationShuffle))
                 }
             }
 
             Section {
                 Toggle("Pause on battery power", isOn: $preferences.pauseOnBattery)
+                    .disabled(preferences.isManaged(\Preferences.pauseOnBattery))
                 Toggle("Pause in Low Power Mode", isOn: $preferences.pauseInLowPowerMode)
+                    .disabled(preferences.isManaged(\Preferences.pauseInLowPowerMode))
                 Toggle(isOn: $preferences.pauseWhenCovered) {
                     Text("Pause when the desktop is hidden")
                     Text("For example behind full-screen apps.")
                 }
+                .disabled(preferences.isManaged(\Preferences.pauseWhenCovered))
                 Toggle("Pause when you're away", isOn: $preferences.pauseWhenIdle)
+                    .disabled(preferences.isManaged(\Preferences.pauseWhenIdle))
                 if preferences.pauseWhenIdle {
                     Picker("Away after", selection: $preferences.idleMinutes) {
                         ForEach([1, 2, 5, 10, 15, 30], id: \.self) { minutes in
                             Text(minutes == 1 ? "1 minute" : "\(minutes) minutes").tag(minutes)
                         }
                     }
+                    .disabled(preferences.isManaged(\Preferences.idleMinutes))
                 }
                 Toggle(isOn: $preferences.respectReduceMotion) {
                     Text("Respect Reduce Motion")
                     Text("Shows a still picture while Reduce Motion is on in Accessibility settings.")
                 }
+                .disabled(preferences.isManaged(\Preferences.respectReduceMotion))
                 Toggle(isOn: $preferences.pauseWhenHot) {
                     Text("Pause when the Mac runs hot")
                     Text("Gives the system room to cool down under heavy load.")
                 }
+                .disabled(preferences.isManaged(\Preferences.pauseWhenHot))
             } header: {
                 Text("Energy")
             } footer: {
@@ -72,6 +83,7 @@ struct SettingsPane: View {
                     Text("Optimize new videos")
                     Text("Converts videos you add to HEVC, at most 30 fps and no larger than your display. Takes a moment after adding, then plays with far less effort.")
                 }
+                .disabled(preferences.isManaged(\Preferences.optimizeNewClips))
                 LabeledContent("Existing videos") {
                     if optimizingAll || !library.optimizing.isEmpty {
                         ProgressView().controlSize(.small)
@@ -108,15 +120,23 @@ struct SettingsPane: View {
             }
 
             Section("Updates") {
-                Toggle("Check for updates automatically", isOn: $updater.automaticallyChecks)
-                LabeledContent("Version \(Bundle.main.shortVersion) (\(Bundle.main.buildNumber))") {
-                    Button("Check Now") { updater.checkForUpdates() }
-                        .disabled(!updater.canCheckForUpdates)
+                if updater.isAvailable {
+                    Toggle("Check for updates automatically", isOn: $updater.automaticallyChecks)
+                    LabeledContent("Version \(Bundle.main.shortVersion) (\(Bundle.main.buildNumber))") {
+                        Button("Check Now") { updater.checkForUpdates() }
+                            .disabled(!updater.canCheckForUpdates)
+                    }
+                } else {
+                    LabeledContent("Version \(Bundle.main.shortVersion) (\(Bundle.main.buildNumber))") {
+                        Text("Managed by your organization")
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
             Section("General") {
                 Toggle("Open at login", isOn: $preferences.launchAtLogin)
+                    .disabled(preferences.isManaged(\Preferences.launchAtLogin))
                 LabeledContent("Library") {
                     HStack {
                         Text(storage)

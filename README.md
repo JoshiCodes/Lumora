@@ -14,7 +14,7 @@ Live video wallpapers for macOS. Bring your own clips or find new ones on Motion
 - **Automatic updates** from GitHub releases
 - Lives in the menu bar, with a Dock icon only while the window is open
 
-Requires macOS 15 or later on Apple Silicon.
+Requires macOS 15 or later, on Apple Silicon or Intel.
 
 ## Easy on the battery
 
@@ -48,6 +48,10 @@ xattr -dr com.apple.quarantine /Applications/Lumora.app
 ```
 
 You only need to do this once. Later versions arrive through the built-in updater, which takes care of this for you.
+
+## Deploying with Intune or another MDM
+
+Releases include an installer package for MDM deployment, and every setting can be locked with a configuration profile. See [docs/Intune.md](docs/Intune.md).
 
 ## Video sources
 
@@ -106,6 +110,7 @@ Every push to `main` is built and tested by GitHub Actions. If `MARKETING_VERSIO
 Each release contains:
 
 - `Lumora-X.Y.Z.dmg` for new installs
+- `Lumora-X.Y.Z.pkg` for MDM deployment
 - `Lumora-X.Y.Z.zip` and `appcast.xml` for [Sparkle](https://sparkle-project.org), which the app uses to update itself
 
 The app reads the feed from `releases/latest/download/appcast.xml`, so updates need the repository to be public. Updates are signed with an EdDSA key. The private key lives in the `SPARKLE_PRIVATE_KEY` repository secret, and the public key is `SUPublicEDKey` in `project.yml`. Without the secret, releases are still published, just without the update feed.

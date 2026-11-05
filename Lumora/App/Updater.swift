@@ -7,29 +7,36 @@ import Sparkle
 final class Updater: NSObject, ObservableObject {
     @Published private(set) var canCheckForUpdates = false
 
-    private var controller: SPUStandardUpdaterController!
+    /// False when an administrator turned updates off; the MDM delivers new versions instead.
+    let isAvailable: Bool
+    private var controller: SPUStandardUpdaterController?
 
     override init() {
+        isAvailable = !ManagedSettings.updatesDisabled
         super.init()
-        controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
+        guard isAvailable else { return }
+
+        let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
+        self.controller = controller
         controller.updater.publisher(for: \.canCheckForUpdates)
             .receive(on: DispatchQueue.main)
             .assign(to: &$canCheckForUpdates)
     }
 
     var automaticallyChecks: Bool {
-        get { controller.updater.automaticallyChecksForUpdates }
+        get { controller?.updater.automaticallyChecksForUpdates ?? false }
         set {
             objectWillChange.send()
-            controller.updater.automaticallyChecksForUpdates = newValue
+            controller?.updater.automaticallyChecksForUpdates = newValue
         }
     }
 
     var lastCheck: Date? {
-        controller.updater.lastUpdateCheckDate
+        controller?.updater.lastUpdateCheckDate
     }
 
     func checkForUpdates() {
+        guard let controller else { return }
         NSApp.activate()
         controller.checkForUpdates(nil)
     }

@@ -25,6 +25,27 @@ enum Scaling: String, CaseIterable, Identifiable {
 
 @MainActor
 final class Preferences: ObservableObject {
+    /// Keys an administrator can lock with a configuration profile.
+    func isManaged(_ keyPath: PartialKeyPath<Preferences>) -> Bool {
+        let key: String? = switch keyPath {
+        case \Preferences.scaling: Key.scaling
+        case \Preferences.pauseOnBattery: Key.pauseOnBattery
+        case \Preferences.pauseInLowPowerMode: Key.pauseInLowPowerMode
+        case \Preferences.pauseWhenCovered: Key.pauseWhenCovered
+        case \Preferences.matchDesktopPicture: Key.matchDesktopPicture
+        case \Preferences.pauseWhenIdle: Key.pauseWhenIdle
+        case \Preferences.idleMinutes: Key.idleMinutes
+        case \Preferences.pauseWhenHot: Key.pauseWhenHot
+        case \Preferences.optimizeNewClips: Key.optimizeNewClips
+        case \Preferences.rotationMinutes: Key.rotationMinutes
+        case \Preferences.rotationShuffle: Key.rotationShuffle
+        case \Preferences.respectReduceMotion: Key.respectReduceMotion
+        case \Preferences.launchAtLogin: ManagedSettings.launchAtLoginKey
+        default: nil
+        }
+        return key.map { defaults.objectIsForced(forKey: $0) } ?? false
+    }
+
     private enum Key {
         static let scaling = "scaling"
         static let pauseOnBattery = "pauseOnBattery"
@@ -114,6 +135,7 @@ final class Preferences: ObservableObject {
     var launchAtLogin: Bool {
         get { SMAppService.mainApp.status == .enabled }
         set {
+            guard !ManagedSettings.isLaunchAtLoginForced else { return }
             objectWillChange.send()
             do {
                 if newValue {

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Managed preferences for Lumora. Upload in Intune as
+  Devices > macOS > Configuration > Create > Templates > Preference file,
+  preference domain: com.joshicodes.Lumora
+
+  Remove any key you don't want to lock. Keys you leave in can't be changed by users.
+-->
+<plist version="1.0">
+<dict>
+    <!-- Your MDM delivers new versions, so turn off Lumora's own updater. -->
+    <key>DisableUpdates</key>
+    <true/>
+
+    <!-- Start Lumora at login. -->
+    <key>LaunchAtLogin</key>
+    <true/>
+
+    <!-- Energy -->
+    <key>pauseOnBattery</key>
+    <true/>
+    <key>pauseInLowPowerMode</key>
+    <true/>
+    <key>pauseWhenCovered</key>
+    <true/>
+    <key>pauseWhenIdle</key>
+    <true/>
+    <key>idleMinutes</key>
+    <integer>5</integer>
+    <key>pauseWhenHot</key>
+    <true/>
+    <key>respectReduceMotion</key>
+    <true/>
+
+    <!-- Convert added videos to HEVC, max 30 fps, display resolution. -->
+    <key>optimizeNewClips</key>
+    <true/>
+
+    <!-- "fill" or "fit" -->
+    <key>scaling</key>
+    <string>fill</string>
+</dict>
+</plist>

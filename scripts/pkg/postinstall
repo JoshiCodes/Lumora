@@ -1,0 +1,12 @@
+#!/bin/sh
+# Start Lumora for whoever is logged in, so the wallpaper comes back right after an update.
+APP="/Applications/Lumora.app"
+
+xattr -dr com.apple.quarantine "$APP" 2>/dev/null
+
+user=$(stat -f%Su /dev/console)
+if [ -n "$user" ] && [ "$user" != "root" ] && [ "$user" != "loginwindow" ]; then
+  uid=$(id -u "$user")
+  launchctl asuser "$uid" sudo -u "$user" /usr/bin/open -g "$APP" 2>/dev/null
+fi
+exit 0

@@ -45,8 +45,10 @@ struct MenuContent: View {
         }
         .keyboardShortcut("o")
 
-        Button("Check for Updates…") { updater.checkForUpdates() }
-            .disabled(!updater.canCheckForUpdates)
+        if updater.isAvailable {
+            Button("Check for Updates…") { updater.checkForUpdates() }
+                .disabled(!updater.canCheckForUpdates)
+        }
 
         Divider()
 

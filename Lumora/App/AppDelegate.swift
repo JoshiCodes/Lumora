@@ -33,6 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         preferences.$optimizeNewClips
             .sink { [library] in library.optimizesNewClips = $0 }
             .store(in: &subscriptions)
+        ManagedSettings.applyLaunchAtLogin()
         wallpaper.start()
         screenSaver.start()
         lockScreen.start()

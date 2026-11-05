@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadDisplayName</key>
+    <string>Lumora</string>
+    <key>PayloadDescription</key>
+    <string>Settings and login item for Lumora live wallpapers.</string>
+    <key>PayloadIdentifier</key>
+    <string>com.joshicodes.Lumora.profile</string>
+    <key>PayloadType</key>
+    <string>Configuration</string>
+    <key>PayloadUUID</key>
+    <string>6C1B7E54-8D0B-4C55-9C1E-3E2C6B1A7F01</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+    <key>PayloadScope</key>
+    <string>System</string>
+    <key>PayloadContent</key>
+    <array>
+        <dict>
+            <key>PayloadDisplayName</key>
+            <string>Lumora Settings</string>
+            <key>PayloadIdentifier</key>
+            <string>com.joshicodes.Lumora.profile.settings</string>
+            <key>PayloadType</key>
+            <string>com.joshicodes.Lumora</string>
+            <key>PayloadUUID</key>
+            <string>6C1B7E54-8D0B-4C55-9C1E-3E2C6B1A7F02</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+            <key>DisableUpdates</key>
+            <true/>
+            <key>LaunchAtLogin</key>
+            <true/>
+            <key>pauseOnBattery</key>
+            <true/>
+            <key>pauseWhenIdle</key>
+            <true/>
+            <key>optimizeNewClips</key>
+            <true/>
+        </dict>
+        <dict>
+            <key>PayloadDisplayName</key>
+            <string>Lumora Login Item</string>
+            <key>PayloadIdentifier</key>
+            <string>com.joshicodes.Lumora.profile.loginitem</string>
+            <key>PayloadType</key>
+            <string>com.apple.servicemanagement</string>
+            <key>PayloadUUID</key>
+            <string>6C1B7E54-8D0B-4C55-9C1E-3E2C6B1A7F03</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+            <key>Rules</key>
+            <array>
+                <dict>
+                    <key>RuleType</key>
+                    <string>BundleIdentifier</string>
+                    <key>RuleValue</key>
+                    <string>com.joshicodes.Lumora</string>
+                    <key>Comment</key>
+                    <string>Lumora</string>
+                </dict>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

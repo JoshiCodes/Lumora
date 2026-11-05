@@ -29,9 +29,16 @@ struct NowPlayingView: View {
     private var stage: some View {
         ZStack {
             if library.activeClip != nil {
-                PlayerPreview(player: wallpaper.player, gravity: preferences.scaling.videoGravity,
-                              blurredEdges: preferences.scaling.showsBlurredEdges)
-                    .background(.black)
+                if let aspect = wallpaper.widestCroppedAspect, let size = wallpaper.videoSize {
+                    // Show the whole clip and mark what the widest display gets to see.
+                    PlayerPreview(player: wallpaper.player, scaling: .fit, videoSize: size)
+                        .background(.black)
+                        .overlay { FramingOverlay(videoSize: size, screenAspect: aspect, focusY: focusY) }
+                } else {
+                    PlayerPreview(player: wallpaper.player, scaling: preferences.scaling,
+                                  videoSize: wallpaper.videoSize, focusY: focusY)
+                        .background(.black)
+                }
             } else {
                 placeholder
             }
@@ -108,7 +115,49 @@ struct NowPlayingView: View {
         }
     }
 
+    private var focusY: CGFloat {
+        CGFloat(library.activeClip?.focusY ?? 0.5)
+    }
+
+    private func framing(for clip: Clip) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "rectangle.dashed")
+                .foregroundStyle(.secondary)
+            Text("Framing")
+                .font(.callout.weight(.medium))
+            Text("Top")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Slider(value: Binding(
+                get: { clip.focusY ?? 0.5 },
+                set: { library.setFocus($0, for: clip) }
+            ), in: 0...1)
+            .frame(maxWidth: 320)
+            Text("Bottom")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button("Center") { library.setFocus(0.5, for: clip) }
+                .buttonStyle(.link)
+                .disabled((clip.focusY ?? 0.5) == 0.5)
+            Spacer()
+            Text("Wide displays show the part inside the frame.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
     private func controls(for clip: Clip) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            controlRow(for: clip)
+            if wallpaper.widestCroppedAspect != nil {
+                framing(for: clip)
+            }
+        }
+    }
+
+    private func controlRow(for clip: Clip) -> some View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(clip.name)
@@ -177,5 +226,45 @@ struct NowPlayingView: View {
                 .padding(.horizontal, 4)
             }
         }
+    }
+}
+
+/// Dims the parts of the video a wide display crops away and outlines what stays visible.
+private struct FramingOverlay: View {
+    let videoSize: CGSize
+    let screenAspect: CGFloat
+    let focusY: CGFloat
+
+    var body: some View {
+        GeometryReader { geometry in
+            let video = fitted(in: geometry.size)
+            let visibleHeight = video.height * min(1, (videoSize.width / videoSize.height) / screenAspect)
+            let top = video.minY + (video.height - visibleHeight) * focusY
+            let window = CGRect(x: video.minX, y: top, width: video.width, height: visibleHeight)
+
+            ZStack(alignment: .topLeading) {
+                Rectangle()
+                    .fill(.black.opacity(0.6))
+                    .frame(width: video.width, height: max(0, window.minY - video.minY))
+                    .offset(x: video.minX, y: video.minY)
+                Rectangle()
+                    .fill(.black.opacity(0.6))
+                    .frame(width: video.width, height: max(0, video.maxY - window.maxY))
+                    .offset(x: video.minX, y: window.maxY)
+                Rectangle()
+                    .strokeBorder(.white.opacity(0.9), lineWidth: 1.5)
+                    .frame(width: window.width, height: window.height)
+                    .offset(x: window.minX, y: window.minY)
+            }
+            .animation(.interactiveSpring(duration: 0.2), value: focusY)
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func fitted(in size: CGSize) -> CGRect {
+        let scale = min(size.width / videoSize.width, size.height / videoSize.height)
+        let width = videoSize.width * scale
+        let height = videoSize.height * scale
+        return CGRect(x: (size.width - width) / 2, y: (size.height - height) / 2, width: width, height: height)
     }
 }

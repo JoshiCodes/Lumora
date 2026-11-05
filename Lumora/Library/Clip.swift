@@ -8,6 +8,8 @@ struct Clip: Identifiable, Codable, Hashable {
     var duration: TimeInterval
     var sourceID: String?
     var credit: String?
+    /// Which part stays visible when the clip is cropped to fill a screen: 0 top, 1 bottom.
+    var focusY: Double?
 
     var durationText: String { Clip.format(duration) }
 

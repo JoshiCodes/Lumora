@@ -1,6 +1,5 @@
 import AVFoundation
 import AppKit
-import CoreImage
 
 /// Borderless window that sits on the desktop layer, below the Finder icons.
 final class DesktopWindow: NSWindow {
@@ -26,73 +25,60 @@ final class DesktopWindow: NSWindow {
         playerView?.show(player, animated: animated)
     }
 
-    var scaling: Scaling = .fill {
-        didSet {
-            playerView?.videoGravity = scaling.videoGravity
-            playerView?.showsBlurredEdges = scaling.showsBlurredEdges
-        }
+    var scaling: Scaling {
+        get { playerView?.scaling ?? .fill }
+        set { playerView?.scaling = newValue }
+    }
+
+    var videoSize: CGSize? {
+        get { playerView?.videoSize }
+        set { playerView?.videoSize = newValue }
+    }
+
+    var focusY: CGFloat {
+        get { playerView?.focusY ?? 0.5 }
+        set { playerView?.focusY = newValue }
     }
 }
 
 /// Shows a player and cross-fades to the next one once its first frame is ready,
 /// so switching wallpapers never flashes black.
 ///
-/// Each player gets a slot: the video itself, plus an optional blurred copy behind it that fills
-/// the edges when the video is fitted onto a screen with a different shape, like an ultrawide.
-/// Both layers show the same player, so nothing is decoded twice.
+/// When the video fills a screen with a different shape (a 16:9 clip on a 21:9 ultrawide),
+/// `focusY` decides which part stays visible: 0 keeps the top, 1 the bottom.
 final class PlayerView: NSView {
     private final class Slot {
-        let container = CALayer()
-        let video: AVPlayerLayer
-        let backdrop: AVPlayerLayer
+        let layer: AVPlayerLayer
 
         init(player: AVPlayer) {
-            video = AVPlayerLayer(player: player)
-            backdrop = AVPlayerLayer(player: player)
-            let noAnimations: [String: CAAction] = ["bounds": NSNull(), "position": NSNull(), "frame": NSNull(),
-                                                     "contentsScale": NSNull(), "hidden": NSNull()]
-            for layer in [container, video, backdrop] {
-                layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-                layer.actions = noAnimations
-            }
-            backdrop.videoGravity = .resizeAspectFill
-            backdrop.filters = [CIFilter(name: "CIGaussianBlur", parameters: [kCIInputRadiusKey: 50])].compactMap { $0 }
-            backdrop.opacity = 0.75
-            container.addSublayer(backdrop)
-            container.addSublayer(video)
+            layer = AVPlayerLayer(player: player)
+            layer.videoGravity = .resizeAspect
+            layer.actions = ["bounds": NSNull(), "position": NSNull(), "frame": NSNull(), "contentsScale": NSNull()]
         }
 
-        var player: AVPlayer? { video.player }
-
-        func apply(gravity: AVLayerVideoGravity, blurredEdges: Bool, scale: CGFloat, frame: CGRect) {
-            video.videoGravity = gravity
-            backdrop.isHidden = !blurredEdges
-            for layer in [container, video, backdrop] {
-                layer.contentsScale = scale
-            }
-            container.frame = frame
-            video.frame = container.bounds
-            // Slightly larger than the screen so the blur doesn't fade out at the edges.
-            backdrop.frame = container.bounds.insetBy(dx: -80, dy: -80)
-        }
+        var player: AVPlayer? { layer.player }
     }
 
     private var current: Slot?
     private var slots: [Slot] = []
     private var readyObservation: NSKeyValueObservation?
 
-    var videoGravity: AVLayerVideoGravity = .resizeAspectFill {
-        didSet { applyAppearance() }
+    var scaling: Scaling = .fill {
+        didSet { if scaling != oldValue { layoutSlots() } }
     }
 
-    var showsBlurredEdges = false {
-        didSet { applyAppearance() }
+    /// Natural size of the video, upright. Needed to place a cropped video precisely.
+    var videoSize: CGSize? {
+        didSet { if videoSize != oldValue { layoutSlots() } }
+    }
+
+    var focusY: CGFloat = 0.5 {
+        didSet { if focusY != oldValue { layoutSlots() } }
     }
 
     init(player: AVPlayer? = nil) {
         super.init(frame: .zero)
         wantsLayer = true
-        layerUsesCoreImageFilters = true
         // Everything on screen comes from the player layers, so AppKit never needs to redraw.
         layerContentsRedrawPolicy = .never
         show(player, animated: false)
@@ -105,6 +91,7 @@ final class PlayerView: NSView {
     override func makeBackingLayer() -> CALayer {
         let layer = CALayer()
         layer.backgroundColor = NSColor.black.cgColor
+        layer.masksToBounds = true
         return layer
     }
 
@@ -116,19 +103,38 @@ final class PlayerView: NSView {
 
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
-        applyAppearance()
+        layoutSlots()
     }
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
-        applyAppearance()
+        layoutSlots()
     }
 
-    private func applyAppearance() {
+    /// Where the video goes. Fitting is left to AVFoundation; filling is done by hand so the
+    /// crop can follow `focusY` instead of always keeping the middle.
+    private var videoFrame: CGRect {
+        guard scaling == .fill, let videoSize, videoSize.width > 0, videoSize.height > 0,
+              bounds.width > 0, bounds.height > 0
+        else { return bounds }
+
+        let scale = max(bounds.width / videoSize.width, bounds.height / videoSize.height)
+        let width = videoSize.width * scale
+        let height = videoSize.height * scale
+        // Layer coordinates start at the bottom, so focus 0 (top) means the lowest origin.
+        let y = (bounds.height - height) * (1 - focusY)
+        return CGRect(x: (bounds.width - width) / 2, y: y, width: width, height: height).integral
+    }
+
+    private func layoutSlots() {
+        let frame = videoFrame
+        let gravity: AVLayerVideoGravity = scaling == .fill && videoSize == nil ? .resizeAspectFill : .resizeAspect
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for slot in slots {
-            slot.apply(gravity: videoGravity, blurredEdges: showsBlurredEdges, scale: backingScale, frame: bounds)
+            slot.layer.contentsScale = backingScale
+            slot.layer.videoGravity = gravity
+            slot.layer.frame = frame
         }
         CATransaction.commit()
     }
@@ -139,7 +145,7 @@ final class PlayerView: NSView {
         // Drop anything left over from a fade that was interrupted by another switch.
         readyObservation = nil
         for slot in slots where slot !== current {
-            slot.container.removeFromSuperlayer()
+            slot.layer.removeFromSuperlayer()
         }
         slots = current.map { [$0] } ?? []
 
@@ -154,18 +160,18 @@ final class PlayerView: NSView {
         slots.append(next)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        next.apply(gravity: videoGravity, blurredEdges: showsBlurredEdges, scale: backingScale, frame: bounds)
-        next.container.opacity = animated && previous != nil ? 0 : 1
-        layer?.addSublayer(next.container)
+        next.layer.opacity = animated && previous != nil ? 0 : 1
+        layer?.addSublayer(next.layer)
         CATransaction.commit()
         current = next
+        layoutSlots()
 
-        guard next.container.opacity == 0 else {
+        guard next.layer.opacity == 0 else {
             remove(previous)
             return
         }
 
-        readyObservation = next.video.observe(\.isReadyForDisplay, options: [.initial, .new]) { [weak self, weak next] layer, _ in
+        readyObservation = next.layer.observe(\.isReadyForDisplay, options: [.initial, .new]) { [weak self, weak next] layer, _ in
             guard layer.isReadyForDisplay, let next else { return }
             DispatchQueue.main.async {
                 self?.crossfade(to: next, from: previous)
@@ -174,13 +180,13 @@ final class PlayerView: NSView {
     }
 
     private func crossfade(to next: Slot, from previous: Slot?) {
-        guard next === current, next.container.opacity == 0 else { return }
+        guard next === current, next.layer.opacity == 0 else { return }
         readyObservation = nil
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.9)
         CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeInEaseOut))
         CATransaction.setCompletionBlock { [weak self] in self?.remove(previous) }
-        next.container.opacity = 1
+        next.layer.opacity = 1
         CATransaction.commit()
     }
 
@@ -189,13 +195,13 @@ final class PlayerView: NSView {
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.5)
         CATransaction.setCompletionBlock { [weak self] in self?.remove(slot) }
-        slot.container.opacity = 0
+        slot.layer.opacity = 0
         CATransaction.commit()
     }
 
     private func remove(_ slot: Slot?) {
         guard let slot else { return }
-        slot.container.removeFromSuperlayer()
+        slot.layer.removeFromSuperlayer()
         slots.removeAll { $0 === slot }
     }
 }

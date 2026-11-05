@@ -1,11 +1,11 @@
 import AVFoundation
+import AppKit
 import Foundation
 import ServiceManagement
 
 enum Scaling: String, CaseIterable, Identifiable {
     case fill
     case fit
-    case fitBlurred
 
     var id: String { rawValue }
 
@@ -13,19 +13,15 @@ enum Scaling: String, CaseIterable, Identifiable {
         switch self {
         case .fill: "Fill Screen"
         case .fit: "Fit to Screen"
-        case .fitBlurred: "Fit, Blurred Edges"
         }
     }
 
     var videoGravity: AVLayerVideoGravity {
         switch self {
         case .fill: .resizeAspectFill
-        case .fit, .fitBlurred: .resizeAspect
+        case .fit: .resizeAspect
         }
     }
-
-    /// Fills the space around a fitted video with a blurred copy of it, instead of black bars.
-    var showsBlurredEdges: Bool { self == .fitBlurred }
 }
 
 @MainActor
@@ -64,6 +60,7 @@ final class Preferences: ObservableObject {
         static let rotationMinutes = "rotationMinutes"
         static let rotationShuffle = "rotationShuffle"
         static let respectReduceMotion = "respectReduceMotion"
+        static let displayScaling = "displayScaling"
     }
 
     private let defaults: UserDefaults
@@ -108,6 +105,17 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(respectReduceMotion, forKey: Key.respectReduceMotion) }
     }
 
+    /// Per-display overrides, keyed by `NSScreen.persistentID`. Displays without one use `scaling`.
+    @Published var displayScaling: [String: Scaling] {
+        didSet {
+            defaults.set(displayScaling.mapValues(\.rawValue), forKey: Key.displayScaling)
+        }
+    }
+
+    func scaling(for screen: NSScreen) -> Scaling {
+        displayScaling[screen.persistentID] ?? scaling
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         defaults.register(defaults: [
@@ -135,6 +143,8 @@ final class Preferences: ObservableObject {
         rotationMinutes = max(0, defaults.integer(forKey: Key.rotationMinutes))
         rotationShuffle = defaults.bool(forKey: Key.rotationShuffle)
         respectReduceMotion = defaults.bool(forKey: Key.respectReduceMotion)
+        let storedDisplays = defaults.dictionary(forKey: Key.displayScaling) as? [String: String] ?? [:]
+        displayScaling = storedDisplays.compactMapValues(Scaling.init(rawValue:))
     }
 
     var launchAtLogin: Bool {

@@ -12,6 +12,8 @@ final class WallpaperController: ObservableObject {
     /// so the video is only decoded once. Each clip gets a fresh player so the views can cross-fade.
     @Published private(set) var player: AVQueuePlayer?
     @Published private(set) var nextRotation: Date?
+    /// Upright size of the current video, used to place cropped video precisely.
+    @Published private(set) var videoSize: CGSize?
 
     private let library: VideoLibrary
     private let preferences: Preferences
@@ -53,6 +55,7 @@ final class WallpaperController: ObservableObject {
             .sink { [weak self] _ in
                 guard let self else { return }
                 loadActiveClip()
+                applyFraming()
                 if rotationTimer == nil { scheduleRotation() }
             }
             .store(in: &subscriptions)
@@ -65,11 +68,16 @@ final class WallpaperController: ObservableObject {
 
         preferences.$scaling
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] scaling in
+            .sink { [weak self] _ in
                 guard let self else { return }
-                windows.values.forEach { $0.scaling = scaling }
+                applyFraming()
                 if preferences.matchDesktopPicture { applyDesktopPicture() }
             }
+            .store(in: &subscriptions)
+
+        preferences.$displayScaling
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.applyFraming() }
             .store(in: &subscriptions)
 
         preferences.$matchDesktopPicture
@@ -188,8 +196,9 @@ final class WallpaperController: ObservableObject {
         let url = library.videoURL(for: clip)
 
         Task {
-            let asset = await Self.silentAsset(for: url)
+            let (asset, size) = await Self.silentAsset(for: url)
             guard generation == loadGeneration else { return }
+            videoSize = size
 
             let newPlayer = Self.makePlayer()
             let newLooper = AVPlayerLooper(player: newPlayer, templateItem: AVPlayerItem(asset: asset))
@@ -218,24 +227,26 @@ final class WallpaperController: ObservableObject {
     }
 
     /// A muted player still decodes audio. Dropping the track saves that work entirely.
-    private nonisolated static func silentAsset(for url: URL) async -> AVAsset {
+    private nonisolated static func silentAsset(for url: URL) async -> (AVAsset, CGSize?) {
         let asset = AVURLAsset(url: url)
         do {
+            guard let video = try await asset.loadTracks(withMediaType: .video).first else { return (asset, nil) }
+            let (range, transform, naturalSize) = try await video.load(.timeRange, .preferredTransform, .naturalSize)
+            let oriented = naturalSize.applying(transform)
+            let size = CGSize(width: abs(oriented.width), height: abs(oriented.height))
+
             let audio = try await asset.loadTracks(withMediaType: .audio)
-            guard !audio.isEmpty, let video = try await asset.loadTracks(withMediaType: .video).first else {
-                return asset
-            }
-            let (range, transform) = try await video.load(.timeRange, .preferredTransform)
+            guard !audio.isEmpty else { return (asset, size) }
 
             let composition = AVMutableComposition()
             guard let track = composition.addMutableTrack(withMediaType: .video,
                                                           preferredTrackID: kCMPersistentTrackID_Invalid)
-            else { return asset }
+            else { return (asset, size) }
             try track.insertTimeRange(range, of: video, at: .zero)
             track.preferredTransform = transform
-            return composition
+            return (composition, size)
         } catch {
-            return asset
+            return (asset, nil)
         }
     }
 
@@ -246,6 +257,7 @@ final class WallpaperController: ObservableObject {
         player?.pause()
         player?.removeAllItems()
         player = nil
+        videoSize = nil
         rotationTimer?.invalidate()
         rotationTimer = nil
         nextRotation = nil
@@ -318,7 +330,9 @@ final class WallpaperController: ObservableObject {
                 window = DesktopWindow()
                 addedScreen = true
             }
-            window.scaling = preferences.scaling
+            window.scaling = preferences.scaling(for: screen)
+            window.videoSize = videoSize
+            window.focusY = focusY
             window.show(player, animated: animated)
             window.setFrame(screen.frame, display: true)
             window.orderFront(nil)
@@ -330,6 +344,42 @@ final class WallpaperController: ObservableObject {
             applyDesktopPicture()
         }
         updatePlayback()
+    }
+
+    // MARK: - Framing
+
+    private var focusY: CGFloat {
+        CGFloat(library.activeClip?.focusY ?? 0.5)
+    }
+
+    /// Re-applies scaling and crop position, e.g. while the framing slider moves.
+    private func applyFraming() {
+        for screen in NSScreen.screens {
+            guard let window = windows[screen.displayID] else { continue }
+            window.scaling = preferences.scaling(for: screen)
+            window.videoSize = videoSize
+            window.focusY = focusY
+        }
+    }
+
+    /// The widest shape among displays that crop the video, as width / height.
+    var widestCroppedAspect: CGFloat? {
+        guard hasCroppedDisplay else { return nil }
+        return NSScreen.screens
+            .filter { preferences.scaling(for: $0) == .fill && $0.frame.height > 0 }
+            .map { $0.frame.width / $0.frame.height }
+            .max()
+    }
+
+    /// True if any display crops the current video noticeably, so the framing control is useful.
+    var hasCroppedDisplay: Bool {
+        guard let videoSize, videoSize.height > 0 else { return false }
+        let videoAspect = videoSize.width / videoSize.height
+        return NSScreen.screens.contains { screen in
+            guard preferences.scaling(for: screen) == .fill, screen.frame.height > 0 else { return false }
+            let screenAspect = screen.frame.width / screen.frame.height
+            return screenAspect / videoAspect > 1.08
+        }
     }
 
     // MARK: - Desktop picture

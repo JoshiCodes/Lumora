@@ -18,7 +18,7 @@ struct RemoteVideoDetail: View {
                 Color.black
                 AsyncImage(url: video.thumbnailURL) { $0.resizable().scaledToFit() } placeholder: { Color.clear }
                 if let player {
-                    PlayerPreview(player: player, gravity: .resizeAspect)
+                    PlayerPreview(player: player, scaling: .fit)
                 }
             }
             .aspectRatio(16 / 9, contentMode: .fit)

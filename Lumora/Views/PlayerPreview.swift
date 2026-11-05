@@ -3,19 +3,20 @@ import SwiftUI
 
 struct PlayerPreview: NSViewRepresentable {
     let player: AVPlayer?
-    var gravity: AVLayerVideoGravity = .resizeAspectFill
-    var blurredEdges = false
+    var scaling: Scaling = .fill
+    var videoSize: CGSize?
+    var focusY: CGFloat = 0.5
 
     func makeNSView(context: Context) -> PlayerView {
         let view = PlayerView(player: player)
-        view.videoGravity = gravity
-        view.showsBlurredEdges = blurredEdges
+        updateNSView(view, context: context)
         return view
     }
 
     func updateNSView(_ view: PlayerView, context: Context) {
-        view.videoGravity = gravity
-        view.showsBlurredEdges = blurredEdges
+        view.scaling = scaling
+        view.videoSize = videoSize
+        view.focusY = focusY
         view.show(player, animated: true)
     }
 }

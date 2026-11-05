@@ -24,6 +24,23 @@ struct SettingsPane: View {
                 .disabled(preferences.isManaged(\Preferences.matchDesktopPicture))
             }
 
+            if NSScreen.screens.count > 1 {
+                Section {
+                    ForEach(NSScreen.screens, id: \.persistentID) { screen in
+                        Picker(screen.localizedName, selection: displayBinding(for: screen)) {
+                            Text("Same as above").tag(Scaling?.none)
+                            Divider()
+                            ForEach(Scaling.allCases) { Text($0.title).tag(Scaling?.some($0)) }
+                        }
+                    }
+                } header: {
+                    Text("Displays")
+                } footer: {
+                    Text("On an ultrawide, Fill crops the top and bottom of 16:9 videos. Pick the visible part per video under Now Playing › Framing, or use Fit for that display.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Rotation") {
                 Picker("Change wallpaper", selection: $preferences.rotationMinutes) {
                     Text("Never").tag(0)
@@ -154,6 +171,13 @@ struct SettingsPane: View {
             let bytes = library.storageSize()
             storage = "\(library.clips.count) videos, " + ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
         }
+    }
+
+    private func displayBinding(for screen: NSScreen) -> Binding<Scaling?> {
+        Binding(
+            get: { preferences.displayScaling[screen.persistentID] },
+            set: { preferences.displayScaling[screen.persistentID] = $0 }
+        )
     }
 
     private func keyBinding(for provider: ProviderID) -> Binding<String> {

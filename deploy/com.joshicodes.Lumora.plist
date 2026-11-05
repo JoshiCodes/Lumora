@@ -37,7 +37,7 @@
     <key>optimizeNewClips</key>
     <true/>
 
-    <!-- "fill", "fit" or "fitBlurred" -->
+    <!-- "fill" or "fit" -->
     <key>scaling</key>
     <string>fill</string>
 </dict>

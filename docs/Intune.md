@@ -52,7 +52,7 @@ Lumora reads its settings from the preference domain `com.joshicodes.Lumora`. An
 | `optimizeNewClips` | Boolean | Convert added videos to HEVC at up to 30 fps and display resolution. |
 | `rotationMinutes` | Integer | Change the wallpaper every n minutes. `0` turns rotation off. |
 | `rotationShuffle` | Boolean | Pick the next wallpaper at random. |
-| `scaling` | String | `fill`, `fit` or `fitBlurred`. |
+| `scaling` | String | `fill` or `fit`. |
 | `matchDesktopPicture` | Boolean | Set the clip's first frame as the regular desktop picture. |
 
 ## 3. Allow the login item

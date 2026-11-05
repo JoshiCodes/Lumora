@@ -6,7 +6,7 @@ Live video wallpapers for macOS. Bring your own clips or find new ones on Motion
 - **Library:** drag and drop your own videos, rename, sort and filter them
 - **Rotation:** change the wallpaper every few minutes, hours or once a day, in order or shuffled
 - **Smooth switching:** wallpapers cross-fade instead of cutting through black
-- **Ultrawide friendly:** *Fit, Blurred Edges* shows the whole video and fills the sides with a soft, blurred copy instead of cropping or black bars
+- **Ultrawide friendly:** choose which part of each video stays visible when it's cropped to a wide display, and set Fill or Fit per display
 - **Discover:** browse and search MotionBGs, Pexels and Pixabay, preview a clip and set it as your wallpaper in one click
 - **Animated lock screen** (experimental): your wallpaper keeps moving on the lock screen
 - **Screen Saver:** a matching screen saver that plays videos from your library

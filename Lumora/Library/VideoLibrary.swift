@@ -125,6 +125,24 @@ final class VideoLibrary: ObservableObject {
         save()
     }
 
+    func setFocus(_ focus: Double, for clip: Clip) {
+        guard let index = clips.firstIndex(where: { $0.id == clip.id }) else { return }
+        clips[index].focusY = min(1, max(0, focus))
+        scheduleSave()
+    }
+
+    /// Dragging the framing slider changes the focus many times a second. Write once it settles.
+    private var pendingSave: Task<Void, Never>?
+
+    private func scheduleSave() {
+        pendingSave?.cancel()
+        pendingSave = Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            save()
+        }
+    }
+
     func remove(_ clip: Clip) {
         if activeClipID == clip.id {
             activeClipID = nil
@@ -174,7 +192,8 @@ final class VideoLibrary: ObservableObject {
             }
             let old = clips[index]
             clips[index] = Clip(id: old.id, name: old.name, fileName: fileName, addedAt: old.addedAt,
-                                duration: old.duration, sourceID: old.sourceID, credit: old.credit)
+                                duration: old.duration, sourceID: old.sourceID, credit: old.credit,
+                                focusY: old.focusY)
             save()
             try? fileManager.removeItem(at: source)
         } catch {
